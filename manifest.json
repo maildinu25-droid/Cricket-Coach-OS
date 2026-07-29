@@ -1,0 +1,8 @@
+{
+  "name": "Cricket Coach OS",
+  "short_name": "Coach OS",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f4f7fa",
+  "theme_color": "#132d46"
+}

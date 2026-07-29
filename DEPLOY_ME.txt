@@ -1,0 +1,1 @@
+Upload ALL files in this folder to the ROOT of the GitHub repository. Then commit. In Render use New > Blueprint and connect this repository.

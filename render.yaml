@@ -1,0 +1,19 @@
+databases:
+  - name: cricket-coach-os-db
+    databaseName: coachos
+    user: coachos
+services:
+  - type: web
+    name: cricket-coach-os
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: cricket-coach-os-db
+          property: connectionString
