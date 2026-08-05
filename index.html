@@ -1,0 +1,631 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#174c3c">
+<title>CoachBook Pro</title>
+<style>
+:root{--g:#174c3c;--g2:#246b55;--mint:#edf6f2;--ink:#18211e;--muted:#707a76;--line:#dce6e1;--bg:#f5f7f6;--red:#a23b3b;--shadow:0 8px 28px rgba(20,55,44,.08)}
+*{box-sizing:border-box}body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;background:var(--bg);color:var(--ink)}
+button,input,textarea,select{font:inherit}.top{position:sticky;top:0;z-index:20;height:68px;background:#fff;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:12px;padding:0 18px}.brand{font-size:21px;font-weight:800;color:var(--g)}.brand small{display:block;font-size:10px;color:var(--muted);letter-spacing:1px;font-weight:600}.menu{border:0;background:var(--mint);border-radius:12px;padding:10px 12px;color:#1680ff}
+.layout{display:grid;grid-template-columns:235px 1fr;min-height:calc(100vh - 68px)}aside{background:#fff;border-right:1px solid var(--line);padding:16px 12px}.nav{display:grid;gap:5px}.nav button{border:0;background:transparent;text-align:left;padding:12px;border-radius:10px;color:#46504c}.nav button.active{background:var(--mint);color:var(--g);font-weight:800}
+main{padding:25px;max-width:1200px;width:100%;margin:auto}.page{display:none}.page.active{display:block}.hero{margin-bottom:20px}.hero h1{margin:0 0 6px;font-size:29px}.muted{color:var(--muted)}.grid{display:grid;gap:15px}.g4{grid-template-columns:repeat(4,1fr)}.g3{grid-template-columns:repeat(3,1fr)}.g2{grid-template-columns:repeat(2,1fr)}.card{background:#fff;border:1px solid var(--line);border-radius:17px;padding:18px;box-shadow:var(--shadow)}.stat span{font-size:12px;text-transform:uppercase;color:var(--muted);letter-spacing:.6px}.stat b{display:block;font-size:29px;color:var(--g);margin-top:8px}.section{margin:25px 0 12px;font-size:19px}.btn{border:0;border-radius:10px;padding:11px 15px;font-weight:750;cursor:pointer}.primary{background:var(--g);color:#fff}.secondary{background:var(--mint);color:var(--g)}.danger{background:#f9eaea;color:var(--red)}.toolbar{display:flex;gap:8px;flex-wrap:wrap}.list{display:grid;gap:9px}.item{border:1px solid var(--line);border-radius:12px;padding:13px;display:flex;justify-content:space-between;gap:10px;align-items:center}.tag{display:inline-block;background:var(--mint);color:var(--g);padding:5px 8px;border-radius:999px;font-size:11px;margin:2px}.quick{cursor:pointer}.quick b,.reportCard b{color:var(--g);font-size:18px}.reportCard{cursor:pointer}.reportCard p{color:var(--muted);margin-bottom:0}.empty{text-align:center;padding:28px;color:var(--muted);border:1px dashed #cbd8d2;border-radius:12px}
+input,textarea,select{width:100%;padding:11px 12px;border:1px solid #ccd7d2;border-radius:10px;background:#fff}textarea{min-height:95px;resize:vertical}label{display:grid;gap:6px;font-size:13px;font-weight:650;color:#46504c}.formgrid{display:grid;grid-template-columns:repeat(2,1fr);gap:14px}.full{grid-column:1/-1}
+.modal{display:none;position:fixed;inset:0;background:rgba(10,25,20,.5);z-index:50;align-items:flex-end;justify-content:center}.modal.open{display:flex}.sheet{background:#fff;width:min(780px,100%);max-height:92vh;overflow:auto;border-radius:22px 22px 0 0;padding:22px}.sheetHead{display:flex;justify-content:space-between;align-items:center;margin-bottom:18px}.sheetHead h2{margin:0}.x{border:0;border-radius:50%;width:38px;height:38px;background:#eef2f0}.rating{display:grid;grid-template-columns:1fr 80px;gap:10px;align-items:center;margin:8px 0}.skillPick{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0 18px}.skillPick label{display:flex;flex-direction:row;align-items:center;border:1px solid var(--line);padding:10px;border-radius:10px}.skillPick input{width:auto}.fab{position:fixed;right:22px;bottom:22px;width:58px;height:58px;border:0;border-radius:50%;background:var(--g);color:#fff;font-size:30px;z-index:30}
+.report{background:#fff}.report h1{color:var(--g)}.report h2{margin-top:24px}.reportTable{width:100%;border-collapse:collapse}.reportTable th,.reportTable td{border-bottom:1px solid var(--line);padding:9px;text-align:left;vertical-align:top}.reportActions{position:sticky;bottom:0;background:#fff;padding:12px 0}
+@media(max-width:850px){.layout{grid-template-columns:1fr}aside{position:fixed;z-index:40;left:-260px;top:68px;bottom:0;width:250px;transition:.2s;box-shadow:var(--shadow)}aside.open{left:0}.g4,.g3{grid-template-columns:repeat(2,1fr)}main{padding:17px}.formgrid{grid-template-columns:1fr}.full{grid-column:auto}}
+@media(max-width:520px){.g4,.g3,.g2{grid-template-columns:1fr}.hero h1{font-size:26px}.card{padding:16px}}
+@page{size:A4 portrait;margin:10mm}
+@media print{
+html,body{margin:0!important;padding:0!important;background:#fff!important;width:100%!important;height:auto!important;min-height:0!important;overflow:visible!important}
+body>*{display:none!important}
+#modal{display:block!important;position:static!important;inset:auto!important;width:100%!important;height:auto!important;min-height:0!important;margin:0!important;padding:0!important;background:#fff!important;overflow:visible!important}
+#sheet{display:block!important;position:static!important;width:100%!important;max-width:none!important;height:auto!important;max-height:none!important;min-height:0!important;margin:0!important;padding:0!important;border:0!important;border-radius:0!important;box-shadow:none!important;overflow:visible!important;background:#fff!important}
+.sheetHead,.reportActions,.noPrint{display:none!important}
+.report{display:block!important;position:static!important;width:100%!important;max-width:none!important;margin:0!important;padding:0!important;background:#fff!important;overflow:visible!important}
+.report h1{margin:0 0 2mm!important;padding:0!important;font-size:22pt!important;line-height:1.12!important;color:#174c3c!important}
+.report h2{margin:6mm 0 2.5mm!important;padding:0!important;font-size:14pt!important;line-height:1.2!important;break-after:avoid!important;page-break-after:avoid!important}
+.report .muted{margin:0 0 5mm!important;font-size:10.5pt!important}
+.report .grid{display:grid!important;gap:3mm!important}
+.report .g4{grid-template-columns:repeat(4,minmax(0,1fr))!important}
+.report .g3{grid-template-columns:repeat(3,minmax(0,1fr))!important}
+.report .g2{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+.report .card{display:block!important;margin:0 0 3mm!important;padding:3.5mm!important;border:1px solid #d9e4df!important;border-radius:7px!important;box-shadow:none!important;background:#fff!important;break-inside:avoid!important;page-break-inside:avoid!important}
+.report .stat b{font-size:20pt!important;line-height:1!important}
+.report p{margin-top:1.5mm!important;margin-bottom:1.5mm!important}
+.reportTable{width:100%!important;border-collapse:collapse!important;font-size:9pt!important}
+.reportTable thead{display:table-header-group!important}
+.reportTable tr{break-inside:avoid!important;page-break-inside:avoid!important}
+.reportTable th,.reportTable td{padding:2mm!important;vertical-align:top!important}
+.tag{display:inline-block!important;border:1px solid #d9e4df!important}
+p{orphans:3;widows:3}
+}
+.calGrid{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}
+.calHead{margin-bottom:6px}
+.calHeadCell{text-align:center;font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;padding:4px 0;cursor:default}
+.calCell{min-height:64px;border:1px solid var(--line);border-radius:10px;padding:6px;cursor:pointer;background:#fff;transition:.15s}
+.calCell:hover{background:var(--mint)}
+.calEmpty{border:none;background:transparent;cursor:default}
+.calEmpty:hover{background:transparent}
+.calToday{border-color:var(--g);border-width:2px}
+.calDayNum{font-size:12px;font-weight:700;color:var(--ink)}
+.calDots{display:flex;gap:3px;margin-top:6px;flex-wrap:wrap}
+.calDot{width:7px;height:7px;border-radius:50%;display:inline-block;background:var(--line)}
+.calDotS{background:var(--g)}
+.calDotM{background:var(--red)}
+.calDotE{background:#c99a2e}
+.calLegend{display:flex;align-items:center;gap:6px;margin-top:14px;font-size:12px;color:var(--muted)}
+.calLegend .calDot{margin-left:10px}
+.calLegend .calDot:first-child{margin-left:0}
+@media(max-width:520px){.calCell{min-height:46px;padding:4px}.calDayNum{font-size:11px}}
+</style>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+</head>
+<body>
+<header class="top"><button class="menu" onclick="toggleMenu()">☰</button><div class="brand">CoachBook Pro<small>PROFESSIONAL CRICKET COACHING</small></div><button class="btn secondary" id="profileBadge" style="margin-left:auto" onclick="go('account')">Profile</button></header>
+<div class="layout"><aside id="side"><div class="nav" id="nav"></div></aside><main>
+<section id="dashboard" class="page active"></section><section id="sessions" class="page"></section><section id="reflections" class="page"></section><section id="players" class="page"></section><section id="assessments" class="page"></section><section id="drills" class="page"></section><section id="matches" class="page"></section><section id="reports" class="page"></section><section id="calendar" class="page"></section><section id="account" class="page"></section>
+</main></div>
+<button class="fab" onclick="quick()">+</button><div class="modal" id="modal"><div class="sheet" id="sheet"></div></div>
+<script>
+const pages=[["dashboard","Dashboard"],["sessions","Session Plans"],["reflections","Self Reflections"],["players","Players"],["assessments","Assessments"],["drills","Drill Library"],["matches","Match Centre"],["reports","Professional Reports"],["calendar","Calendar"],["account","Account & Backup"]];
+const seed=[{name:"High Catch Pressure Circle",cat:"Fielding",players:"6–12",duration:"15 min",points:"Early call, balanced base, attack the ball, secure finish."},{name:"Direct Hit Competition",cat:"Fielding",players:"6–14",duration:"12 min",points:"Gather under control, align feet, quick release."}];
+const PROFILES_KEY="coachbook_profiles",ACTIVE_KEY="coachbook_active_profile";
+function getProfiles(){let p=null;try{p=JSON.parse(localStorage.getItem(PROFILES_KEY))}catch(e){}if(!Array.isArray(p)||!p.length){p=[{id:"default",name:"My Coaching Profile",club:"",key:"coachbook"}];localStorage.setItem(PROFILES_KEY,JSON.stringify(p))}return p}
+function getActiveProfile(){let profiles=getProfiles();let activeId=localStorage.getItem(ACTIVE_KEY)||"default";return profiles.find(p=>p.id===activeId)||profiles[0]}
+const DB_KEY=getActiveProfile().key;
+let db;try{db=JSON.parse(localStorage.getItem(DB_KEY))}catch(e){};db=db||{sessions:[],reflections:[],players:[],assessments:[],matches:[],drills:seed};
+["sessions","reflections","players","assessments","matches","drills","events"].forEach(k=>db[k]=Array.isArray(db[k])?db[k]:[]);
+function uid(p){return (p||"id")+"_"+Math.random().toString(36).slice(2,9)+Date.now().toString(36).slice(-4)}
+db.matches.forEach(m=>{if(!m.id)m.id=uid("m")});
+db.drills.forEach(d=>{if(!d.id)d.id=uid("drill")});
+db.players.forEach(p=>{if(!p.id)p.id=uid("plyr")});
+const esc=s=>String(s??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]));const today=()=>new Date().toISOString().slice(0,10);
+function save(){localStorage.setItem(DB_KEY,JSON.stringify(db));renderAll()}function head(t,s){return `<div class="hero"><h1>${t}</h1><div class="muted">${s}</div></div>`}function empty(t){return `<div class="empty">${t}</div>`}
+function nav(){navEl=document.getElementById("nav");navEl.innerHTML=pages.map(([id,n],i)=>`<button class="${i?"":"active"}" onclick="go('${id}',this)">${n}</button>`).join("")}
+function go(id,b){document.querySelectorAll(".page").forEach(x=>x.classList.remove("active"));document.getElementById(id).classList.add("active");document.querySelectorAll(".nav button").forEach(x=>x.classList.remove("active"));if(b)b.classList.add("active");side.classList.remove("open")}function toggleMenu(){side.classList.toggle("open")}
+function modal(h){sheet.innerHTML=h;modalEl.classList.add("open")}function closeM(){modalEl.classList.remove("open")}const modalEl=document.getElementById("modal"),sheet=document.getElementById("sheet"),side=document.getElementById("side");modalEl.onclick=e=>{if(e.target===modalEl)closeM()}
+function del(k,i){if(confirm("Delete this entry?")){db[k].splice(i,1);save()}}
+function reflectionStreak(){let dates=[...new Set(db.reflections.map(r=>r.date).filter(Boolean))].sort().reverse();if(!dates.length)return 0;let streak=1;for(let i=1;i<dates.length;i++){let prev=new Date(dates[i-1]+"T00:00:00");let cur=new Date(dates[i]+"T00:00:00");let diff=Math.round((prev-cur)/86400000);if(diff===1)streak++;else break}return streak}
+function dashboard(){
+ let hrs=db.sessions.reduce((a,s)=>a+(+s.duration||0),0)/60;
+ let mk=today().slice(0,7);
+ let lastMonthDate=new Date();lastMonthDate.setMonth(lastMonthDate.getMonth()-1);let lastMk=lastMonthDate.toISOString().slice(0,7);
+ let ssMonth=db.sessions.filter(s=>monthKey(s.date)===mk);
+ let mmMonth=db.matches.filter(m=>monthKey(m.date)===mk);
+ let aaMonth=db.assessments.filter(a=>monthKey(a.date)===mk);
+ let rrMonth=db.reflections.filter(r=>monthKey(r.date)===mk);
+ let hrsMonth=ssMonth.reduce((a,s)=>a+(+s.duration||0),0)/60;
+ let ssLastMonthCount=db.sessions.filter(s=>monthKey(s.date)===lastMk).length;
+ let sessionTrend=ssLastMonthCount?Math.round((ssMonth.length-ssLastMonthCount)/ssLastMonthCount*100):(ssMonth.length?100:0);
+
+ let todaySessions=db.sessions.filter(s=>s.date===today());
+ let todayMatches=db.matches.filter(m=>m.date===today());
+ let todayEvents=db.events.filter(e=>e.date===today());
+
+ let upcomingSessions=db.sessions.slice().filter(s=>s.date>=today()).sort((a,b)=>String(a.date||"").localeCompare(String(b.date||""))).slice(0,5);
+
+ let upcomingCal=[
+  ...db.sessions.filter(s=>s.date>=today()).map(s=>({date:s.date,label:s.title||"Session",type:"Session"})),
+  ...db.matches.filter(m=>m.date>=today()).map(m=>({date:m.date,label:"vs "+(m.opp||"Opposition"),type:"Match"})),
+  ...db.events.filter(e=>e.date>=today()).map(e=>({date:e.date,label:e.title,type:e.type||"Event"}))
+ ].sort((a,b)=>String(a.date||"").localeCompare(String(b.date||""))).slice(0,6);
+
+ let streak=reflectionStreak();
+ let ratedAssessments=db.assessments.map(a=>Number(assessmentAvg(a))).filter(Number.isFinite);
+ let teamAvg=ratedAssessments.length?(ratedAssessments.reduce((a,b)=>a+b,0)/ratedAssessments.length).toFixed(1):"—";
+
+ dashboardEl.innerHTML=head("Coaching Dashboard","Your professional coaching workspace.")
+ +`<h2 class="section" style="margin-top:0">Daily Overview — ${esc(fmtCalDate(today()))}</h2>
+ <div class="card">${(todaySessions.length+todayMatches.length+todayEvents.length)?`
+ ${todaySessions.map(s=>`<div class="item"><div><b>${esc(s.title||"Session")}</b><div class="muted">${esc(s.squad||"")}${s.duration?" · "+esc(s.duration)+" min":""}</div></div><span class="tag">Session</span></div>`).join("")}
+ ${todayMatches.map(m=>`<div class="item"><div><b>vs ${esc(m.opp||"Opposition")}</b><div class="muted">${esc(m.result||"Match day")}</div></div><span class="tag">Match</span></div>`).join("")}
+ ${todayEvents.map(e=>`<div class="item"><div><b>${esc(e.title)}</b><div class="muted">${e.time?esc(e.time):""}</div></div><span class="tag">${esc(e.type||"Event")}</span></div>`).join("")}
+ `:empty("Nothing scheduled today.")}</div>
+
+ <h2 class="section">Coaching Statistics</h2>
+ <div class="grid g4"><div class="card stat"><span>Sessions</span><b>${db.sessions.length}</b></div><div class="card stat"><span>Coaching Hours</span><b>${hrs.toFixed(1)}</b></div><div class="card stat"><span>Players</span><b>${db.players.length}</b></div><div class="card stat"><span>Assessments</span><b>${db.assessments.length}</b></div></div>
+
+ <h2 class="section">Quick actions</h2>
+ <div class="grid g4"><div class="card quick" onclick="newSession()"><b>Session Plan</b><p>Plan objectives, blocks and coaching cues.</p></div><div class="card quick" onclick="newReflection()"><b>Reflection</b><p>Capture coaching learning.</p></div><div class="card quick" onclick="newPlayer()"><b>Add Player</b><p>Build player development records.</p></div><div class="card quick" onclick="newAssessment()"><b>Assessment</b><p>Assess batting, bowling, fielding or keeping.</p></div><div class="card quick" onclick="newMatch()"><b>Match Centre</b><p>Log a full match report.</p></div><div class="card quick" onclick="newCalEvent()"><b>Reminder / Event</b><p>Add to your calendar.</p></div></div>
+
+ <div class="grid g2" style="margin-top:24px;align-items:start">
+  <div>
+   <h2 class="section" style="margin-top:0">Upcoming Sessions</h2>
+   <div class="card">${upcomingSessions.length?upcomingSessions.map(s=>`<div class="item"><div><b>${esc(s.title||"Session")}</b><div class="muted">${esc(s.date)}${s.squad?" · "+esc(s.squad):""}</div></div></div>`).join(""):empty("No upcoming sessions scheduled.")}</div>
+  </div>
+  <div>
+   <h2 class="section" style="margin-top:0">Calendar Widget</h2>
+   <div class="card">${upcomingCal.length?upcomingCal.map(c=>`<div class="item"><div><b>${esc(c.label)}</b><div class="muted">${esc(c.date)} · ${esc(c.type)}</div></div></div>`).join(""):empty("Nothing coming up.")}<button class="btn secondary" style="margin-top:10px" onclick="go('calendar')">View Calendar →</button></div>
+  </div>
+ </div>
+
+ <div class="grid g2" style="margin-top:24px;align-items:start">
+  <div>
+   <h2 class="section" style="margin-top:0">Monthly Summary</h2>
+   <div class="card"><div class="grid g4">
+    <div class="card stat"><span>Sessions</span><b>${ssMonth.length}</b></div>
+    <div class="card stat"><span>Hours</span><b>${hrsMonth.toFixed(1)}</b></div>
+    <div class="card stat"><span>Matches</span><b>${mmMonth.length}</b></div>
+    <div class="card stat"><span>Reflections</span><b>${rrMonth.length}</b></div>
+   </div><button class="btn secondary" style="margin-top:12px" onclick="monthlyReport()">Full Monthly Report →</button></div>
+  </div>
+  <div>
+   <h2 class="section" style="margin-top:0">Progress Widgets</h2>
+   <div class="card">
+    <div class="item"><div><b>Reflection Streak</b><div class="muted">Consecutive days reflected on</div></div><b>${streak} day${streak===1?"":"s"}</b></div>
+    <div class="item"><div><b>Team Average Rating</b><div class="muted">Across all player assessments</div></div><b>${teamAvg}${teamAvg!=="—"?"/5":""}</b></div>
+    <div class="item"><div><b>Session Volume Trend</b><div class="muted">vs last month (${ssLastMonthCount} sessions)</div></div><b>${sessionTrend>0?"+":""}${sessionTrend}%</b></div>
+   </div>
+  </div>
+ </div>`;
+}
+const dashboardEl=document.getElementById("dashboard");
+function sessions(){document.getElementById("sessions").innerHTML=head("Session Plans","Plan, document and review every coaching session.")+`<button class="btn primary noPrint" onclick="newSession()">+ New Session</button><h2 class="section">Sessions</h2><div class="card">${db.sessions.length?`<div class="list">${db.sessions.slice().reverse().map((s,r)=>{let i=db.sessions.length-1-r;return `<div class="item"><div><b>${esc(s.title)}</b><div class="muted">${esc(s.date)} · ${esc(s.squad)} · ${esc(s.duration)} min</div><small>${esc(s.objectives)}</small></div><button class="btn danger" onclick="del('sessions',${i})">×</button></div>`}).join("")}</div>`:empty("No sessions yet.")}</div>`}
+function newSession(){modal(`<div class="sheetHead"><h2>New Session Plan</h2><button class="x" onclick="closeM()">×</button></div><form class="formgrid" onsubmit="addSession(event)"><label>Date<input type="date" name="date" value="${today()}" required></label><label>Session title<input name="title" required></label><label>Squad / Group<input name="squad"></label><label>Duration (minutes)<input type="number" name="duration" value="90"></label><label>Primary focus<select name="focus"><option>Batting</option><option>Bowling</option><option>Fielding</option><option>Wicketkeeping</option><option>Team</option><option>Fitness</option></select></label><label>Venue<input name="venue"></label><div class="full"><h2 class="section">Attendance</h2>${db.players.length?`<div class="skillPick">${db.players.map(p=>`<label><input type="checkbox" name="attendees" value="${esc(p.name)}"> ${esc(p.name)}</label>`).join("")}</div>`:`<div class="muted">No players yet — add players to enable attendance tracking.</div>`}</div><label class="full">Objectives<textarea name="objectives"></textarea></label><label class="full">Warm-up / Preparation<textarea name="warmup"></textarea></label><label class="full">Main Skill Block<textarea name="main"></textarea></label><label class="full">Competitive / Game Block<textarea name="game"></textarea></label><label class="full">Coaching Cues<textarea name="cues"></textarea></label><label class="full">Success Criteria<textarea name="success"></textarea></label><button class="btn primary">Save Session</button></form>`)}function addSession(e){e.preventDefault();let fd=new FormData(e.target);let s=Object.fromEntries(fd);s.attendees=fd.getAll("attendees");db.sessions.push(s);closeM();save()}
+function reflections(){document.getElementById("reflections").innerHTML=head("Self Reflections","Turn experience into deliberate coaching improvement.")+`<button class="btn primary" onclick="newReflection()">+ New Reflection</button><h2 class="section">Reflection history</h2><div class="card">${db.reflections.length?db.reflections.slice().reverse().map((x,r)=>`<div class="item"><div><b>${esc(x.date)} · ${esc(x.session||"Reflection")}</b><div class="muted">Rating ${esc(x.rating)}/5</div><small>${esc(x.well)}</small></div><button class="btn danger" onclick="del('reflections',${db.reflections.length-1-r})">×</button></div>`).join(""):empty("No reflections yet.")}</div>`}
+function newReflection(){modal(`<div class="sheetHead"><h2>Coach Self Reflection</h2><button class="x" onclick="closeM()">×</button></div><form class="formgrid" onsubmit="addReflection(event)"><label>Date<input type="date" name="date" value="${today()}"></label><label>Session / Group<input name="session"></label><label>Overall rating<select name="rating"><option>5</option><option>4</option><option>3</option><option>2</option><option>1</option></select></label><label>Communication<select name="communication"><option>5</option><option>4</option><option>3</option><option>2</option><option>1</option></select></label><label class="full">What went well?<textarea name="well"></textarea></label><label class="full">What could be better?<textarea name="better"></textarea></label><label class="full">What did I learn?<textarea name="players"></textarea></label><label class="full">What will I change next time?<textarea name="change"></textarea></label><label class="full">Next focus<textarea name="next"></textarea></label><button class="btn primary">Save Reflection</button></form>`)}function addReflection(e){e.preventDefault();db.reflections.push(Object.fromEntries(new FormData(e.target)));closeM();save()}
+const PLAYER_ROLES=["Batter","Bowler","All-rounder","Wicketkeeper","Wicketkeeper-Batter"];
+let playerQuery="",playerRoleFilter="",playerTeamFilter="",playerSearchFocused=false,editingPlayerId=null;
+function playerTeams(){return[...new Set(db.players.map(p=>p.team).filter(Boolean))].sort()}
+function playerFormHtml(p,mode){p=p||{};return `<div class="sheetHead"><h2>${mode==="edit"?"Edit Player":"Add Player"}</h2><button class="x" onclick="closeM()">×</button></div>
+<form class="formgrid" onsubmit="savePlayer(event)">
+<label>Player name<input name="name" value="${esc(p.name||"")}" required></label>
+<label>Team<input name="team" value="${esc(p.team||"")}" placeholder="e.g. 1st XI, U15s"></label>
+<label>Squad / Group<input name="group" value="${esc(p.group||"")}"></label>
+<label>Role<select name="role">${PLAYER_ROLES.map(r=>`<option ${p.role===r?"selected":""}>${r}</option>`).join("")}</select></label>
+<label>Age<input type="number" name="age" value="${esc(p.age||"")}"></label>
+<label class="full">Strengths<textarea name="strengths">${esc(p.strengths||"")}</textarea></label>
+<label class="full">Development areas<textarea name="areas">${esc(p.areas||"")}</textarea></label>
+<label class="full">Current focus / goal<textarea name="focus">${esc(p.focus||"")}</textarea></label>
+<label class="full">Coach notes<textarea name="notes">${esc(p.notes||"")}</textarea></label>
+<button class="btn primary">Save Player</button>
+</form>`}
+function newPlayer(){editingPlayerId=null;modal(playerFormHtml(null,"new"))}
+function editPlayer(id){let p=db.players.find(x=>x.id===id);if(!p)return;editingPlayerId=id;modal(playerFormHtml(p,"edit"))}
+function savePlayer(e){
+ e.preventDefault();
+ let p=Object.fromEntries(new FormData(e.target));
+ if(editingPlayerId){let idx=db.players.findIndex(x=>x.id===editingPlayerId);if(idx>-1){p.id=editingPlayerId;db.players[idx]=p}}
+ else{p.id=uid("plyr");db.players.push(p)}
+ editingPlayerId=null;closeM();save();
+}
+function delPlayer(id){if(confirm("Delete this player? Their assessments and match entries will remain but be unlinked.")){db.players=db.players.filter(x=>x.id!==id);save()}}
+function playerCardHtml(p){return `<div class="card"><b>${esc(p.name)}</b><div class="muted">${esc(p.role||"Player")}${p.team?" · "+esc(p.team):""}${p.group?" · "+esc(p.group):""}</div><p>${esc(p.focus||"")}</p><div class="toolbar"><button class="btn secondary" onclick="playerView('${p.id}')">Profile</button><button class="btn secondary" onclick="editPlayer('${p.id}')">Edit</button><button class="btn danger" onclick="delPlayer('${p.id}')">×</button></div></div>`}
+function players(){
+ let list=db.players.slice().sort((a,b)=>String(a.name||"").localeCompare(String(b.name||"")));
+ if(playerQuery){let q=playerQuery.toLowerCase();list=list.filter(p=>[p.name,p.team,p.group,p.strengths,p.areas,p.focus,p.notes].some(v=>String(v||"").toLowerCase().includes(q)))}
+ if(playerRoleFilter)list=list.filter(p=>p.role===playerRoleFilter);
+ if(playerTeamFilter)list=list.filter(p=>p.team===playerTeamFilter);
+ document.getElementById("players").innerHTML=head("Players","Development record for every player.")
+ +`<div class="toolbar noPrint"><button class="btn primary" onclick="newPlayer()">+ Add Player</button><button class="btn secondary" onclick="playerRosterReport()">Print Roster</button></div>
+ <div class="card" style="margin:15px 0"><div class="formgrid">
+ <label>Search<input id="playerSearch" value="${esc(playerQuery)}" oninput="playerQuery=this.value;players()" onfocus="playerSearchFocused=true" onblur="playerSearchFocused=false" placeholder="Name, team, notes..."></label>
+ <label>Role<select onchange="playerRoleFilter=this.value;players()"><option value="">All roles</option>${PLAYER_ROLES.map(r=>`<option value="${r}" ${playerRoleFilter===r?"selected":""}>${r}</option>`).join("")}</select></label>
+ <label>Team<select onchange="playerTeamFilter=this.value;players()"><option value="">All teams</option>${playerTeams().map(t=>`<option value="${esc(t)}" ${playerTeamFilter===t?"selected":""}>${esc(t)}</option>`).join("")}</select></label>
+ </div></div>
+ <h2 class="section">Player database (${list.length})</h2>
+ <div class="grid g3">${list.length?list.map(playerCardHtml).join(""):empty("Add players to begin.")}</div>`;
+ let sEl=document.getElementById("playerSearch");if(sEl&&playerSearchFocused){sEl.focus();const v=sEl.value;sEl.setSelectionRange(v.length,v.length)}
+}
+function playerAssessments(p){return db.assessments.filter(a=>a.player===p.name).slice().sort((a,b)=>String(a.date||"").localeCompare(String(b.date||"")))}
+function playerSessions(p){return db.sessions.filter(s=>Array.isArray(s.attendees)&&s.attendees.includes(p.name)).slice().sort((a,b)=>String(b.date||"").localeCompare(String(a.date||"")))}
+function playerMatches(p){return db.matches.filter(m=>(m.battingReview||[]).some(r=>r.name===p.name)||(m.bowlingReview||[]).some(r=>r.name===p.name)).slice().sort((a,b)=>String(b.date||"").localeCompare(String(a.date||"")))}
+function playerViewBody(p){
+ let assessments=playerAssessments(p);
+ let latest=assessments.slice(-1)[0];
+ let sessions=playerSessions(p);
+ let matches=playerMatches(p);
+ return `<div class="grid g2"><div class="card"><b>Role</b><div>${esc(p.role||"—")}</div></div><div class="card"><b>Team / Squad</b><div>${esc(p.team||"—")}${p.group?" · "+esc(p.group):""}</div></div></div>
+ ${p.age?`<div class="muted" style="margin-top:8px">Age: ${esc(p.age)}</div>`:""}
+ <h2 class="section">Current goal</h2><div class="card">${esc(p.focus||"—")}</div>
+ ${p.strengths?`<h2 class="section">Strengths</h2><div class="card">${esc(p.strengths)}</div>`:""}
+ ${p.areas?`<h2 class="section">Development areas</h2><div class="card">${esc(p.areas)}</div>`:""}
+ ${p.notes?`<h2 class="section">Coach notes</h2><div class="card">${esc(p.notes)}</div>`:""}
+ ${latest?`<h2 class="section">Latest assessment</h2><div class="card"><b>Overall ${assessmentAvg(latest)}/10</b><br>${assessmentDisciplines(latest).map(d=>`<span class="tag">${d} ${disciplineAvg(latest,d)}/10</span>`).join("")}</div>${assessmentDetailHTML(latest)}`:""}
+ <h2 class="section">Assessment history (${assessments.length})</h2>${assessments.length?`<div class="card">${assessments.map(a=>`<div class="item"><div><b>${esc(a.date)}</b><div class="muted">Overall ${assessmentAvg(a)}/10</div></div></div>`).join("")}</div>`:empty("No assessments yet.")}
+ <h2 class="section">Session attendance (${sessions.length})</h2>${sessions.length?`<div class="card">${sessions.map(s=>`<div class="item"><div><b>${esc(s.title||"Session")}</b><div class="muted">${esc(s.date)}</div></div></div>`).join("")}</div>`:empty("No recorded attendance yet.")}
+ <h2 class="section">Match history (${matches.length})</h2>${matches.length?`<div class="card">${matches.map(m=>{let bat=(m.battingReview||[]).find(r=>r.name===p.name);let bowl=(m.bowlingReview||[]).find(r=>r.name===p.name);return `<div class="item"><div><b>vs ${esc(m.opp||"Opposition")}</b><div class="muted">${esc(m.date)}${bat?" · "+esc(bat.runs||0)+"("+esc(bat.balls||0)+")":""}${bowl?" · "+esc(bowl.wickets||0)+"/"+esc(bowl.runs||0):""}</div></div><button class="btn secondary" onclick="closeM();matchReportView('${m.id}')">Report</button></div>`}).join("")}</div>`:empty("No match entries yet.")}`;
+}
+function playerView(id){let p=db.players.find(x=>x.id===id);if(!p)return;modal(`<div class="sheetHead"><h2>${esc(p.name)}</h2><button class="x" onclick="closeM()">×</button></div>${playerViewBody(p)}<button class="btn secondary" style="margin-top:14px" onclick="playerProfileReport('${p.id}')">Print Profile</button>`)}
+function playerProfileReport(id){let p=db.players.find(x=>x.id===id);if(!p)return;reportShell(esc(p.name),`${esc(p.role||"Player")}${p.team?" · "+esc(p.team):""}`,playerViewBody(p))}
+function playerRosterReport(){
+ let list=db.players.slice().sort((a,b)=>String(a.team||"").localeCompare(String(b.team||""))||String(a.name||"").localeCompare(String(b.name||"")));
+ reportShell("Player Roster",`${list.length} players`,list.length?list.map(p=>`<div class="card"><b>${esc(p.name)}</b> <span class="tag">${esc(p.role||"Player")}</span><p class="muted">${p.team?esc(p.team):"No team set"}${p.group?" · "+esc(p.group):""}</p><p>${esc(p.focus||"")}</p></div>`).join(""):empty("No players yet."));
+}
+const skillSets={Batting:["Setup & Balance","Footwork","Bat Swing / Contact","Shot Selection","Playing Pace","Playing Spin","Strike Rotation","Boundary Options","Game Awareness","Execution Under Pressure"],Bowling:["Run-up / Approach","Action & Alignment","Accuracy","Length Control","Consistency","Pace / Revolutions","Swing / Seam / Spin","Variations","Tactical Awareness","Execution Under Pressure"],Fielding:["Catching","Ground Fielding","Throwing Accuracy","Throwing Power","Movement & Agility","Positioning","Game Awareness","Communication","Decision Making","Execution Under Pressure"],Wicketkeeping:["Set Position","Footwork","Glove Work","Standing Back","Standing Up","Taking Spin","Leg-side Takes","Gather & Release","Communication","Decision Making"]};const legacySkills=["Catching","Ground Fielding","Throwing Accuracy","Movement","Game Awareness","Communication","Decision Making","Work Ethic","Coachability"];
+function assessments(){document.getElementById("assessments").innerHTML=head("Player Assessments","Choose one or more disciplines. For an all-rounder select Batting + Bowling; Fielding can also be added.")+`<button class="btn primary" onclick="newAssessment()">+ New Assessment</button><h2 class="section">Assessment history</h2><div class="card">${db.assessments.length?db.assessments.slice().reverse().map((a,r)=>`<div class="item"><div><b>${esc(a.player)}</b><div class="muted">${esc(a.date)} · Overall ${assessmentAvg(a)}/10</div><div>${assessmentDisciplines(a).map(d=>`<span class="tag">${esc(d)}</span>`).join("")}</div><small>${esc(a.priority||"")}</small></div><button class="btn danger" onclick="del('assessments',${db.assessments.length-1-r})">×</button></div>`).join(""):empty("No assessments yet.")}</div>`}
+function newAssessment(){if(!db.players.length){alert("Add a player first.");return}modal(`<div class="sheetHead"><h2>Player Assessment</h2><button class="x" onclick="closeM()">×</button></div><form onsubmit="addAssessment(event)"><div class="formgrid"><label>Player<select name="player">${db.players.map(p=>`<option>${esc(p.name)}</option>`).join("")}</select></label><label>Date<input type="date" name="date" value="${today()}"></label></div><h2 class="section">Choose Skill Areas</h2><div class="muted">Select as many as required.</div><div class="skillPick">${Object.keys(skillSets).map(k=>`<label><input type="checkbox" name="disciplines" value="${k}" onchange="renderAssessmentSkills()"> ${k}</label>`).join("")}</div><div id="assessmentSkills">${empty("Select at least one skill area.")}</div><label>Key development priority<textarea name="priority"></textarea></label><label>Coach comments<textarea name="comments"></textarea></label><button class="btn primary">Save Assessment</button></form>`)}
+function renderAssessmentSkills(){let box=document.getElementById("assessmentSkills"),sel=[...document.querySelectorAll('input[name="disciplines"]:checked')].map(x=>x.value);box.innerHTML=sel.map(d=>`<h2 class="section">${d} · Rate 1–10</h2><div class="card">${skillSets[d].map((s,i)=>`<div class="rating"><label>${s}</label><input name="${d}_${i}" type="number" min="1" max="10" value="5"></div>`).join("")}<label>${d} development notes<textarea name="${d}_notes"></textarea></label></div>`).join("")||empty("Select at least one skill area.")}
+function addAssessment(e){e.preventDefault();let fd=new FormData(e.target),sel=fd.getAll("disciplines");if(!sel.length){alert("Select at least one skill area.");return}let a={player:fd.get("player"),date:fd.get("date"),disciplines:sel,priority:fd.get("priority"),comments:fd.get("comments"),ratings:{},disciplineNotes:{}};sel.forEach(d=>{a.ratings[d]=skillSets[d].map((_,i)=>Number(fd.get(`${d}_${i}`)||0));a.disciplineNotes[d]=fd.get(`${d}_notes`)||""});db.assessments.push(a);closeM();save()}
+function assessmentDisciplines(a){return Array.isArray(a.disciplines)&&a.disciplines.length?a.disciplines:["Fielding"]}function disciplineAvg(a,d){let n=[];if(a.ratings&&Array.isArray(a.ratings[d]))n=a.ratings[d].map(Number).filter(x=>x>0);else if(d==="Fielding")n=legacySkills.map((_,i)=>Number(a["s"+i]||0)).filter(x=>x>0);return n.length?(n.reduce((x,y)=>x+y,0)/n.length).toFixed(1):"—"}function assessmentAvg(a){let n=assessmentDisciplines(a).map(d=>Number(disciplineAvg(a,d))).filter(Number.isFinite);return n.length?(n.reduce((x,y)=>x+y,0)/n.length).toFixed(1):"—"}
+function assessmentDetailHTML(a){return assessmentDisciplines(a).map(d=>{let vals=a.ratings?.[d]||[],labels=skillSets[d]||legacySkills;if(!vals.length&&d==="Fielding")vals=legacySkills.map((_,i)=>Number(a["s"+i]||0));return `<h2 class="section">${d} · ${disciplineAvg(a,d)}/10</h2><div class="card">${labels.map((s,i)=>vals[i]?`<div><b>${esc(s)}</b> — ${esc(vals[i])}/10</div>`:"").join("")}${a.disciplineNotes?.[d]?`<p><b>Development notes</b><br>${esc(a.disciplineNotes[d])}</p>`:""}</div>`}).join("")}
+/* ===== Drill Library ===== */
+const DRILL_CATS=["Batting","Bowling","Fielding","Wicketkeeping","Fitness","Warm-up","Game-based","Mental"];
+let drillQuery="",drillCatFilter="",drillSearchFocused=false,drillDraftDiagram=null,editingDrillId=null;
+function handleDrillDiagram(input){
+ let file=input.files&&input.files[0];
+ if(!file){drillDraftDiagram=null;renderDrillDiagramPreview();return}
+ if(file.size>1500000){alert("Image too large — please use an image under 1.5MB.");input.value="";return}
+ let reader=new FileReader();
+ reader.onload=()=>{drillDraftDiagram=reader.result;renderDrillDiagramPreview()};
+ reader.readAsDataURL(file);
+}
+function renderDrillDiagramPreview(){
+ let el=document.getElementById("drillDiagramPreview");if(!el)return;
+ el.innerHTML=drillDraftDiagram?`<img src="${drillDraftDiagram}" style="max-width:100%;border-radius:10px;margin-top:8px"><button type="button" class="btn danger" style="margin-top:6px" onclick="drillDraftDiagram=null;renderDrillDiagramPreview();document.getElementById('drillDiagramInput').value=''">Remove diagram</button>`:"";
+}
+function drillFormHtml(d,mode){d=d||{};return `<div class="sheetHead"><h2>${mode==="edit"?"Edit Drill":"Add Drill"}</h2><button class="x" onclick="closeM()">×</button></div>
+<form onsubmit="saveDrill(event)">
+<div class="formgrid">
+<label>Drill name<input name="name" value="${esc(d.name||"")}" required></label>
+<label>Skill category<select name="cat">${DRILL_CATS.map(c=>`<option ${d.cat===c?"selected":""}>${c}</option>`).join("")}</select></label>
+<label>Players / group size<input name="players" value="${esc(d.players||"")}"></label>
+<label>Duration<input name="duration" value="${esc(d.duration||"")}" placeholder="e.g. 10 min"></label>
+<label class="full">Equipment needed<input name="equipment" value="${esc(d.equipment||"")}" placeholder="Cones, stumps, tennis balls..."></label>
+</div>
+<h2 class="section">Diagram (optional)</h2>
+<input id="drillDiagramInput" type="file" accept="image/*" onchange="handleDrillDiagram(this)">
+<div id="drillDiagramPreview"></div>
+<div class="formgrid" style="margin-top:14px">
+<label class="full">Organisation &amp; coaching points<textarea name="points">${esc(d.points||"")}</textarea></label>
+<label class="full">Progressions <span class="muted">(how to increase difficulty)</span><textarea name="progressions">${esc(d.progressions||"")}</textarea></label>
+<label class="full">Regressions <span class="muted">(how to make it easier)</span><textarea name="regressions">${esc(d.regressions||"")}</textarea></label>
+</div>
+<button class="btn primary" style="margin-top:10px">Save Drill</button>
+</form>`}
+function openDrillForm(existing,mode){drillDraftDiagram=existing&&existing.diagram?existing.diagram:null;editingDrillId=mode==="edit"?existing.id:null;modal(drillFormHtml(existing,mode));renderDrillDiagramPreview()}
+function newDrill(){openDrillForm(null,"new")}
+function editDrill(id){let d=db.drills.find(x=>x.id===id);if(!d)return;openDrillForm(d,"edit")}
+function saveDrill(e){
+ e.preventDefault();
+ let d=Object.fromEntries(new FormData(e.target));
+ d.diagram=drillDraftDiagram||"";
+ if(editingDrillId){let idx=db.drills.findIndex(x=>x.id===editingDrillId);if(idx>-1){d.id=editingDrillId;db.drills[idx]=d}}
+ else{d.id=uid("drill");db.drills.push(d)}
+ editingDrillId=null;drillDraftDiagram=null;closeM();save();
+}
+function delDrill(id){if(confirm("Delete this drill?")){db.drills=db.drills.filter(x=>x.id!==id);save()}}
+function drillCardHtml(d){return `<div class="card"><span class="tag">${esc(d.cat||"General")}</span><h3>${esc(d.name)}</h3><div class="muted">${esc(d.players||"")}${d.duration?" · "+esc(d.duration):""}${d.equipment?" · "+esc(d.equipment):""}</div>${d.diagram?`<img src="${d.diagram}" style="max-width:100%;border-radius:10px;margin:10px 0">`:""}<p>${esc(d.points||"")}</p>${d.progressions?`<div class="muted"><b>Progression:</b> ${esc(d.progressions)}</div>`:""}${d.regressions?`<div class="muted"><b>Regression:</b> ${esc(d.regressions)}</div>`:""}<div class="toolbar" style="margin-top:10px"><button class="btn secondary" onclick="editDrill('${d.id}')">Edit</button><button class="btn danger" onclick="delDrill('${d.id}')">Delete</button></div></div>`}
+function drillLibraryReport(){
+ let list=db.drills.slice().sort((a,b)=>String(a.cat||"").localeCompare(String(b.cat||""))||String(a.name||"").localeCompare(String(b.name||"")));
+ reportShell("Drill Library",`${list.length} drills`,
+ list.length?list.map(d=>`<div class="card"><b>${esc(d.name)}</b> <span class="tag">${esc(d.cat||"General")}</span><p class="muted">${esc(d.players||"")}${d.duration?" · "+esc(d.duration):""}${d.equipment?" · Equipment: "+esc(d.equipment):""}</p><p>${esc(d.points||"")}</p>${d.progressions?`<p><b>Progression:</b> ${esc(d.progressions)}</p>`:""}${d.regressions?`<p><b>Regression:</b> ${esc(d.regressions)}</p>`:""}</div>`).join(""):empty("No drills in the library."));
+}
+function drills(){
+ let list=db.drills.slice().sort((a,b)=>String(a.name||"").localeCompare(String(b.name||"")));
+ if(drillQuery){let q=drillQuery.toLowerCase();list=list.filter(d=>[d.name,d.cat,d.equipment,d.points,d.progressions,d.regressions].some(v=>String(v||"").toLowerCase().includes(q)))}
+ if(drillCatFilter)list=list.filter(d=>d.cat===drillCatFilter);
+ document.getElementById("drills").innerHTML=head("Drill Library","Keep your best coaching practices organised and reusable.")
+ +`<div class="toolbar noPrint"><button class="btn primary" onclick="newDrill()">+ Add Drill</button><button class="btn secondary" onclick="drillLibraryReport()">Print Library</button></div>
+ <div class="card" style="margin:15px 0"><div class="formgrid">
+ <label>Search<input id="drillSearch" value="${esc(drillQuery)}" oninput="drillQuery=this.value;drills()" onfocus="drillSearchFocused=true" onblur="drillSearchFocused=false" placeholder="Name, equipment, coaching points..."></label>
+ <label>Skill category<select onchange="drillCatFilter=this.value;drills()"><option value="">All categories</option>${DRILL_CATS.map(c=>`<option value="${c}" ${drillCatFilter===c?"selected":""}>${c}</option>`).join("")}</select></label>
+ </div></div>
+ <h2 class="section">Drills (${list.length})</h2>
+ <div class="grid g2">${list.length?list.map(drillCardHtml).join(""):empty("No drills match your search.")}</div>`;
+ let sEl=document.getElementById("drillSearch");if(sEl&&drillSearchFocused){sEl.focus();const v=sEl.value;sEl.setSelectionRange(v.length,v.length)}
+}
+/* ===== End Drill Library ===== */
+/* ===== Match Centre ===== */
+let matchQuery="",matchFormatFilter="",matchResultFilter="",matchSearchFocused=false;
+let matchDraft={batting:[],bowling:[]},editingMatchId=null;
+const MATCH_FORMATS=["T20","ODI","One Day","Test/Multi-day","Friendly","Practice","League"];
+function matchResultOutcome(m){let r=String(m.result||"").toLowerCase();if(/\bwin|\bwon\b/.test(r))return"Win";if(/\bloss|\blost\b/.test(r))return"Loss";if(/\bdraw\b/.test(r))return"Draw";if(/no result|abandon/.test(r))return"NR";return"Other"}
+function matches(){
+ let list=db.matches.slice().sort((a,b)=>String(b.date||"").localeCompare(String(a.date||"")));
+ if(matchQuery){let q=matchQuery.toLowerCase();list=list.filter(m=>[m.team,m.opp,m.venue,m.notes,m.actions,m.result,m.teamNotes].some(v=>String(v||"").toLowerCase().includes(q)))}
+ if(matchFormatFilter)list=list.filter(m=>m.format===matchFormatFilter);
+ if(matchResultFilter)list=list.filter(m=>matchResultOutcome(m)===matchResultFilter);
+ document.getElementById("matches").innerHTML=head("Match Centre","Match details, foundation, team & individual reviews, and automatic reports.")+`<div class="toolbar noPrint"><button class="btn primary" onclick="newMatch()">+ New Match</button><button class="btn secondary" onclick="matchReport()">Print Report</button><button class="btn secondary" onclick="exportExcel()">Export Excel</button></div>
+ <div class="card" style="margin:15px 0"><div class="formgrid">
+ <label>Search<input id="matchSearch" value="${esc(matchQuery)}" oninput="matchQuery=this.value;matches()" onfocus="matchSearchFocused=true" onblur="matchSearchFocused=false" placeholder="Team, opposition, venue, notes..."></label>
+ <label>Format<select onchange="matchFormatFilter=this.value;matches()"><option value="">All formats</option>${MATCH_FORMATS.map(f=>`<option value="${f}" ${matchFormatFilter===f?"selected":""}>${f}</option>`).join("")}</select></label>
+ <label>Result<select onchange="matchResultFilter=this.value;matches()"><option value="">All results</option>${["Win","Loss","Draw","NR","Other"].map(f=>`<option value="${f}" ${matchResultFilter===f?"selected":""}>${f}</option>`).join("")}</select></label>
+ </div></div>
+ <h2 class="section">Match History (${list.length})</h2><div class="grid g2">${list.length?list.map(matchCardHtml).join(""):empty("No matches recorded yet.")}</div>`;
+ let sEl=document.getElementById("matchSearch");if(sEl&&matchSearchFocused){sEl.focus();const v=sEl.value;sEl.setSelectionRange(v.length,v.length)}
+}
+function matchCardHtml(m){return `<div class="card"><div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:flex-start"><div><b>${esc(m.team||"My Team")} vs ${esc(m.opp||"Opposition")}</b><div class="muted">${esc(m.date||"")} ${m.venue?"· "+esc(m.venue):""} ${m.format?"· "+esc(m.format):""}</div></div><span class="tag">${esc(matchResultOutcome(m))}</span></div><p>${esc(m.result||"No result recorded")}</p><div class="muted">${(m.battingReview&&m.battingReview.length)?m.battingReview.length+" batting entries · ":""}${(m.bowlingReview&&m.bowlingReview.length)?m.bowlingReview.length+" bowling entries · ":""}Fielding ${esc(m.rating||"—")}/10</div><div class="toolbar" style="margin-top:10px"><button class="btn secondary" onclick="matchReportView('${m.id}')">Report</button><button class="btn secondary" onclick="editMatch('${m.id}')">Edit</button><button class="btn secondary" onclick="duplicateMatch('${m.id}')">Duplicate</button><button class="btn danger" onclick="delMatch('${m.id}')">Delete</button></div></div>`}
+
+function battingRowHtml(row,i){return `<div class="item" style="align-items:flex-start"><div class="formgrid" style="flex:1"><label>Batter<input value="${esc(row.name||"")}" oninput="matchDraft.batting[${i}].name=this.value"></label><label>Runs<input type="number" value="${esc(row.runs||"")}" oninput="matchDraft.batting[${i}].runs=this.value"></label><label>Balls<input type="number" value="${esc(row.balls||"")}" oninput="matchDraft.batting[${i}].balls=this.value"></label><label>Dismissal<input value="${esc(row.dismissal||"")}" oninput="matchDraft.batting[${i}].dismissal=this.value" placeholder="e.g. c&b, lbw, not out"></label><label class="full">Notes<textarea oninput="matchDraft.batting[${i}].notes=this.value">${esc(row.notes||"")}</textarea></label></div><button type="button" class="btn danger" onclick="removeBattingRow(${i})">×</button></div>`}
+function renderBattingRows(){document.getElementById("battingRows").innerHTML=matchDraft.batting.length?matchDraft.batting.map(battingRowHtml).join(""):empty("No batting entries yet.")}
+function addBattingRow(){matchDraft.batting.push({name:"",runs:"",balls:"",dismissal:"",notes:""});renderBattingRows()}
+function removeBattingRow(i){matchDraft.batting.splice(i,1);renderBattingRows()}
+
+function bowlingRowHtml(row,i){return `<div class="item" style="align-items:flex-start"><div class="formgrid" style="flex:1"><label>Bowler<input value="${esc(row.name||"")}" oninput="matchDraft.bowling[${i}].name=this.value"></label><label>Overs<input value="${esc(row.overs||"")}" oninput="matchDraft.bowling[${i}].overs=this.value"></label><label>Runs conceded<input type="number" value="${esc(row.runs||"")}" oninput="matchDraft.bowling[${i}].runs=this.value"></label><label>Wickets<input type="number" value="${esc(row.wickets||"")}" oninput="matchDraft.bowling[${i}].wickets=this.value"></label><label class="full">Notes<textarea oninput="matchDraft.bowling[${i}].notes=this.value">${esc(row.notes||"")}</textarea></label></div><button type="button" class="btn danger" onclick="removeBowlingRow(${i})">×</button></div>`}
+function renderBowlingRows(){document.getElementById("bowlingRows").innerHTML=matchDraft.bowling.length?matchDraft.bowling.map(bowlingRowHtml).join(""):empty("No bowling entries yet.")}
+function addBowlingRow(){matchDraft.bowling.push({name:"",overs:"",runs:"",wickets:"",notes:""});renderBowlingRows()}
+function removeBowlingRow(i){matchDraft.bowling.splice(i,1);renderBowlingRows()}
+
+function matchFormHtml(m,mode){m=m||{};return `<div class="sheetHead"><h2>${mode==="edit"?"Edit Match":"New Match"}</h2><button class="x" onclick="closeM()">×</button></div>
+<form id="matchForm" onsubmit="saveMatch(event)">
+<h2 class="section" style="margin-top:0">Match Details</h2>
+<div class="formgrid">
+<label>Date<input type="date" name="date" value="${esc(m.date||today())}" required></label>
+<label>Your team<input name="team" value="${esc(m.team||"")}"></label>
+<label>Opposition<input name="opp" value="${esc(m.opp||"")}"></label>
+<label>Venue<input name="venue" value="${esc(m.venue||"")}"></label>
+<label>Format<select name="format">${MATCH_FORMATS.map(f=>`<option ${m.format===f?"selected":""}>${f}</option>`).join("")}</select></label>
+<label class="full">Result<input name="result" value="${esc(m.result||"")}" placeholder="e.g. Won by 24 runs"></label>
+</div>
+<h2 class="section">Foundation</h2>
+<div class="formgrid">
+<label>Toss<select name="toss"><option ${m.toss==="Won"?"selected":""}>Won</option><option ${m.toss==="Lost"?"selected":""}>Lost</option></select></label>
+<label>Decision<select name="tossDecision"><option ${m.tossDecision==="Bat"?"selected":""}>Bat</option><option ${m.tossDecision==="Bowl"?"selected":""}>Bowl</option></select></label>
+<label class="full">Pitch / conditions<textarea name="conditions">${esc(m.conditions||"")}</textarea></label>
+</div>
+<h2 class="section">Team Review</h2>
+<div class="formgrid">
+<label>Overall team rating /10<input type="number" name="teamRating" min="1" max="10" value="${esc(m.teamRating||7)}"></label>
+<label class="full">Team performance notes<textarea name="teamNotes">${esc(m.teamNotes||"")}</textarea></label>
+</div>
+<h2 class="section">Batting Review</h2>
+<div id="battingRows"></div>
+<button type="button" class="btn secondary" style="margin:10px 0" onclick="addBattingRow()">+ Add batter</button>
+<h2 class="section">Bowling Review</h2>
+<div id="bowlingRows"></div>
+<button type="button" class="btn secondary" style="margin:10px 0" onclick="addBowlingRow()">+ Add bowler</button>
+<h2 class="section">Fielding Review</h2>
+<div class="formgrid">
+<label>Fielding rating /10<input type="number" name="rating" min="1" max="10" value="${esc(m.rating||7)}"></label>
+<label>Chances taken<input type="number" name="taken" value="${esc(m.taken||"")}"></label>
+<label>Chances missed<input type="number" name="missed" value="${esc(m.missed||"")}"></label>
+<label>Run outs<input type="number" name="runouts" value="${esc(m.runouts||"")}"></label>
+<label>Misfields<input type="number" name="misfields" value="${esc(m.misfields||"")}"></label>
+<label class="full">Fielding observations<textarea name="notes">${esc(m.notes||"")}</textarea></label>
+</div>
+<h2 class="section">Key Learnings &amp; Training Actions</h2>
+<div class="formgrid"><label class="full">Action items for training<textarea name="actions">${esc(m.actions||"")}</textarea></label></div>
+<button class="btn primary" style="margin-top:15px">Save Match</button>
+</form>`}
+
+function openMatchForm(existing,mode){
+ matchDraft={batting:existing&&existing.battingReview?JSON.parse(JSON.stringify(existing.battingReview)):[],bowling:existing&&existing.bowlingReview?JSON.parse(JSON.stringify(existing.bowlingReview)):[]};
+ editingMatchId=mode==="edit"?existing.id:null;
+ modal(matchFormHtml(existing,mode));
+ renderBattingRows();renderBowlingRows();
+}
+function newMatch(){openMatchForm(null,"new")}
+function editMatch(id){let m=db.matches.find(x=>x.id===id);if(!m)return;openMatchForm(m,"edit")}
+function duplicateMatch(id){let src=db.matches.find(x=>x.id===id);if(!src)return;let m=JSON.parse(JSON.stringify(src));delete m.id;m.date=today();openMatchForm(m,"duplicate")}
+function saveMatch(e){
+ e.preventDefault();
+ let m=Object.fromEntries(new FormData(e.target));
+ m.battingReview=matchDraft.batting.filter(r=>r.name&&String(r.name).trim());
+ m.bowlingReview=matchDraft.bowling.filter(r=>r.name&&String(r.name).trim());
+ if(editingMatchId){let idx=db.matches.findIndex(x=>x.id===editingMatchId);if(idx>-1){m.id=editingMatchId;db.matches[idx]=m}}
+ else{m.id=uid("m");db.matches.push(m)}
+ editingMatchId=null;closeM();save();
+}
+function delMatch(id){if(confirm("Delete this match? This cannot be undone.")){db.matches=db.matches.filter(x=>x.id!==id);save()}}
+
+function matchReportView(id){
+ let m=db.matches.find(x=>x.id===id);if(!m)return;
+ let battingRows=(m.battingReview||[]).map(r=>`<tr><td>${esc(r.name)}</td><td>${esc(r.runs||"-")}</td><td>${esc(r.balls||"-")}</td><td>${esc(r.dismissal||"-")}</td><td>${esc(r.notes||"")}</td></tr>`).join("");
+ let bowlingRows=(m.bowlingReview||[]).map(r=>`<tr><td>${esc(r.name)}</td><td>${esc(r.overs||"-")}</td><td>${esc(r.runs||"-")}</td><td>${esc(r.wickets||"-")}</td><td>${esc(r.notes||"")}</td></tr>`).join("");
+ let body=`<div class="grid g4">
+ <div class="card stat"><span>Format</span><b style="font-size:16px">${esc(m.format||"—")}</b></div>
+ <div class="card stat"><span>Venue</span><b style="font-size:16px">${esc(m.venue||"—")}</b></div>
+ <div class="card stat"><span>Toss</span><b style="font-size:16px">${esc(m.toss||"—")}${m.tossDecision?" · "+esc(m.tossDecision):""}</b></div>
+ <div class="card stat"><span>Fielding</span><b>${esc(m.rating||"—")}/10</b></div>
+ </div>
+ <h2>Result</h2><div class="card"><p>${esc(m.result||"—")}</p></div>
+ <h2>Foundation</h2><div class="card"><p><b>Conditions:</b> ${esc(m.conditions||"—")}</p></div>
+ <h2>Team Review</h2><div class="card"><p><b>Rating:</b> ${esc(m.teamRating||"—")}/10</p><p>${esc(m.teamNotes||"—")}</p></div>
+ <h2>Batting Review</h2>${battingRows?`<table class="reportTable"><tr><th>Batter</th><th>Runs</th><th>Balls</th><th>Dismissal</th><th>Notes</th></tr>${battingRows}</table>`:empty("No batting entries recorded.")}
+ <h2>Bowling Review</h2>${bowlingRows?`<table class="reportTable"><tr><th>Bowler</th><th>Overs</th><th>Runs</th><th>Wickets</th><th>Notes</th></tr>${bowlingRows}</table>`:empty("No bowling entries recorded.")}
+ <h2>Fielding Review</h2><div class="card"><p>Chances taken ${esc(m.taken||0)} · Missed ${esc(m.missed||0)} · Run outs ${esc(m.runouts||0)} · Misfields ${esc(m.misfields||0)}</p><p>${esc(m.notes||"—")}</p></div>
+ <h2>Key Learnings &amp; Training Actions</h2><div class="card"><p>${esc(m.actions||"—")}</p></div>`;
+ reportShell(`${esc(m.team||"Team")} vs ${esc(m.opp||"Opposition")}`,`${esc(m.date||"")} · Automatic Match Report`,body);
+}
+/* ===== End Match Centre ===== */
+function reports(){let hrs=db.sessions.reduce((a,s)=>a+(+s.duration||0),0)/60,nums=db.assessments.map(a=>Number(assessmentAvg(a))).filter(Number.isFinite),avg=nums.length?(nums.reduce((a,b)=>a+b,0)/nums.length).toFixed(1):"—";document.getElementById("reports").innerHTML=head("Professional Reports","Generate polished reports from the information you already enter in CoachBook Pro.")+`<div class="grid g4"><div class="card stat"><span>Sessions</span><b>${db.sessions.length}</b></div><div class="card stat"><span>Coaching Hours</span><b>${hrs.toFixed(1)}</b></div><div class="card stat"><span>Assessments</span><b>${db.assessments.length}</b></div><div class="card stat"><span>Avg Assessment</span><b>${avg}</b></div></div><h2 class="section">Generate Report</h2><div class="grid g2"><div class="card reportCard" onclick="monthlyReport()"><b>Monthly Coaching Report</b><p>Sessions, hours, assessments, reflections and match actions.</p></div><div class="card reportCard" onclick="playerReport()"><b>Player Development Report</b><p>Player profile, latest assessment, development priorities and history.</p></div><div class="card reportCard" onclick="seasonReport()"><b>Season / Full Report</b><p>Complete overview of your documented coaching work.</p></div><div class="card reportCard" onclick="sessionReport()"><b>Session Report</b><p>Professional chronological summary of coaching sessions.</p></div><div class="card reportCard" onclick="matchReport()"><b>Match & Fielding Report</b><p>Chances, run-outs, misfields, observations and training actions.</p></div><div class="card reportCard" onclick="coachReport()"><b>Coach Development Report</b><p>Reflection history, learning and future coaching actions.</p></div></div><h2 class="section">Data tools</h2><div class="card toolbar"><button class="btn secondary" onclick="exportExcel()">Export Excel</button><button class="btn secondary" onclick="backup()">Export Backup</button><label class="btn secondary" style="display:inline-block">Import Backup<input type="file" accept=".json" onchange="restore(event)" style="display:none"></label></div>`}
+function printReport(){
+  document.body.classList.add("printingReport");
+  setTimeout(()=>window.print(),100);
+}
+window.addEventListener("afterprint",()=>document.body.classList.remove("printingReport"));
+function reportShell(title,sub,body){modal(`<div class="sheetHead noPrint"><h2>${title}</h2><button class="x" onclick="closeM()">×</button></div><div class="report"><h1>${title}</h1><div class="muted">${sub}</div>${body}<div class="reportActions noPrint"><button class="btn primary" onclick="printReport()">Print / Save PDF</button></div></div>`)}
+function monthKey(d){return String(d||"").slice(0,7)}function monthlyReport(){let mk=today().slice(0,7),ss=db.sessions.filter(x=>monthKey(x.date)===mk),aa=db.assessments.filter(x=>monthKey(x.date)===mk),rr=db.reflections.filter(x=>monthKey(x.date)===mk),mm=db.matches.filter(x=>monthKey(x.date)===mk),hrs=ss.reduce((a,s)=>a+(+s.duration||0),0)/60;reportShell("Monthly Coaching Report",mk,`<div class="grid g4"><div class="card stat"><span>Sessions</span><b>${ss.length}</b></div><div class="card stat"><span>Hours</span><b>${hrs.toFixed(1)}</b></div><div class="card stat"><span>Assessments</span><b>${aa.length}</b></div><div class="card stat"><span>Reflections</span><b>${rr.length}</b></div></div><h2>Sessions</h2>${ss.length?ss.map(s=>`<div class="card"><b>${esc(s.date)} · ${esc(s.title)}</b><p>${esc(s.objectives||"")}</p></div>`).join(""):empty("No sessions in this month.")}<h2>Assessments</h2>${aa.length?aa.map(a=>`<div class="card"><b>${esc(a.player)} · ${assessmentAvg(a)}/10</b><p>${esc(a.priority||"")}</p></div>`).join(""):empty("No assessments in this month.")}<h2>Match actions</h2>${mm.length?mm.map(m=>`<div class="card"><b>${esc(m.team)} vs ${esc(m.opp)}</b><p>${esc(m.actions||m.notes||"")}</p></div>`).join(""):empty("No match notes in this month.")}`)}
+function playerReport(){if(!db.players.length){alert("Add a player first.");return}modal(`<div class="sheetHead"><h2>Player Development Report</h2><button class="x" onclick="closeM()">×</button></div><label>Select player<select id="reportPlayer">${db.players.map((p,i)=>`<option value="${i}">${esc(p.name)}</option>`).join("")}</select></label><button class="btn primary" style="margin-top:15px" onclick="buildPlayerReport()">Generate Report</button>`)}function buildPlayerReport(){let p=db.players[+document.getElementById("reportPlayer").value],aa=db.assessments.filter(a=>a.player===p.name);reportShell("Player Development Report",`${p.name} · ${p.role||"Player"}`,`<div class="grid g2"><div class="card"><b>Squad</b><div>${esc(p.group||"—")}</div></div><div class="card"><b>Current goal</b><div>${esc(p.focus||"—")}</div></div></div><h2>Profile</h2><div class="card"><b>Strengths</b><p>${esc(p.strengths||"—")}</p><b>Development areas</b><p>${esc(p.areas||"—")}</p></div><h2>Assessment History</h2>${aa.length?aa.map(a=>`<div class="card"><b>${esc(a.date)} · Overall ${assessmentAvg(a)}/10</b><div>${assessmentDisciplines(a).map(d=>`<span class="tag">${d} ${disciplineAvg(a,d)}/10</span>`).join("")}</div><p><b>Priority:</b> ${esc(a.priority||"—")}</p>${assessmentDetailHTML(a)}</div>`).join(""):empty("No assessments for this player.")}`)}
+function seasonReport(){let hrs=db.sessions.reduce((a,s)=>a+(+s.duration||0),0)/60;reportShell("Season / Full Report","Complete CoachBook Pro record",`<div class="grid g4"><div class="card stat"><span>Sessions</span><b>${db.sessions.length}</b></div><div class="card stat"><span>Hours</span><b>${hrs.toFixed(1)}</b></div><div class="card stat"><span>Players</span><b>${db.players.length}</b></div><div class="card stat"><span>Matches</span><b>${db.matches.length}</b></div></div><h2>Players</h2>${db.players.map(p=>`<div class="card"><b>${esc(p.name)} · ${esc(p.role)}</b><p>${esc(p.focus||"")}</p></div>`).join("")||empty("No players.")}<h2>Sessions</h2>${db.sessions.map(s=>`<div class="card"><b>${esc(s.date)} · ${esc(s.title)}</b><p>${esc(s.objectives||"")}</p></div>`).join("")||empty("No sessions.")}<h2>Coach reflections</h2>${db.reflections.map(r=>`<div class="card"><b>${esc(r.date)}</b><p>${esc(r.well||"")}</p><p><b>Next:</b> ${esc(r.change||r.next||"")}</p></div>`).join("")||empty("No reflections.")}`)}
+function sessionReport(){reportShell("Session Report","Chronological coaching-session record",db.sessions.length?`<table class="reportTable"><tr><th>Date</th><th>Session</th><th>Focus</th><th>Objectives</th></tr>${db.sessions.slice().sort((a,b)=>String(a.date).localeCompare(String(b.date))).map(s=>`<tr><td>${esc(s.date)}</td><td>${esc(s.title)}</td><td>${esc(s.focus)}</td><td>${esc(s.objectives)}</td></tr>`).join("")}</table>`:empty("No sessions documented."))}
+function matchReport(){let taken=db.matches.reduce((a,m)=>a+(+m.taken||0),0),missed=db.matches.reduce((a,m)=>a+(+m.missed||0),0),ro=db.matches.reduce((a,m)=>a+(+m.runouts||0),0),mf=db.matches.reduce((a,m)=>a+(+m.misfields||0),0);reportShell("Match & Fielding Report","Match observations and fielding actions",`<div class="grid g4"><div class="card stat"><span>Chances Taken</span><b>${taken}</b></div><div class="card stat"><span>Missed</span><b>${missed}</b></div><div class="card stat"><span>Run Outs</span><b>${ro}</b></div><div class="card stat"><span>Misfields</span><b>${mf}</b></div></div><h2>Match History</h2>${db.matches.map(m=>`<div class="card"><b>${esc(m.date)} · ${esc(m.team)} vs ${esc(m.opp)}</b><p>Fielding rating: ${esc(m.rating)}/10 · Taken ${esc(m.taken||0)} · Missed ${esc(m.missed||0)} · Run outs ${esc(m.runouts||0)} · Misfields ${esc(m.misfields||0)}</p><p><b>Observations:</b> ${esc(m.notes||"—")}</p><p><b>Training actions:</b> ${esc(m.actions||"—")}</p></div>`).join("")||empty("No match notes.")}`)}
+function coachReport(){reportShell("Coach Development Report","Reflection history, learning and future actions",db.reflections.length?db.reflections.map(r=>`<div class="card"><b>${esc(r.date)} · ${esc(r.session||"Coaching Reflection")}</b><p><b>Rating:</b> ${esc(r.rating)}/5 · Communication ${esc(r.communication||"—")}/5</p><p><b>What went well:</b> ${esc(r.well||"—")}</p><p><b>What could improve:</b> ${esc(r.better||"—")}</p><p><b>Learning:</b> ${esc(r.players||"—")}</p><p><b>Change next time:</b> ${esc(r.change||"—")}</p><p><b>Next focus:</b> ${esc(r.next||"—")}</p></div>`).join(""):empty("No reflections documented."))}
+function backup(){let a=document.createElement("a");a.href=URL.createObjectURL(new Blob([JSON.stringify(db,null,2)],{type:"application/json"}));a.download="CoachBook-Pro-Backup-"+today()+".json";a.click()}function restore(e){let f=e.target.files[0];if(!f)return;let r=new FileReader();r.onload=()=>{try{db=JSON.parse(r.result);save();alert("Backup restored.")}catch(e){alert("Invalid backup file.")}};r.readAsText(f)}
+
+function exportExcel(){
+ if(typeof XLSX==='undefined'){alert('Excel library failed to load.');return;}
+ const wb=XLSX.utils.book_new();
+ const sheets={
+  Sessions:db.sessions,
+  Players:db.players,
+  Assessments:db.assessments.map(a=>({
+    player:a.player,date:a.date,
+    disciplines:(a.disciplines||[]).join(', '),
+    overall:assessmentAvg(a),
+    priority:a.priority||'',
+    comments:a.comments||''
+  })),
+  Reflections:db.reflections,
+  Matches:db.matches.map(m=>({
+    date:m.date,team:m.team,opp:m.opp,venue:m.venue,format:m.format,result:m.result,
+    toss:m.toss,tossDecision:m.tossDecision,teamRating:m.teamRating,teamNotes:m.teamNotes,
+    battingSummary:(m.battingReview||[]).map(r=>`${r.name} ${r.runs||0}(${r.balls||0})`).join('; '),
+    bowlingSummary:(m.bowlingReview||[]).map(r=>`${r.name} ${r.wickets||0}/${r.runs||0}`).join('; '),
+    fieldingRating:m.rating,taken:m.taken,missed:m.missed,runouts:m.runouts,misfields:m.misfields,
+    notes:m.notes,actions:m.actions
+  })),
+  Drills:db.drills.map(d=>({
+    name:d.name,category:d.cat,players:d.players,duration:d.duration,equipment:d.equipment,
+    diagram:d.diagram?"Yes":"No",
+    points:d.points,progressions:d.progressions,regressions:d.regressions
+  })),
+  Events:db.events
+ };
+ Object.entries(sheets).forEach(([n,d])=>{
+   const ws=XLSX.utils.json_to_sheet(d.length?d:[{}]);
+   XLSX.utils.book_append_sheet(wb,ws,n);
+ });
+ XLSX.writeFile(wb,'CoachBook-Pro-'+today()+'.xlsx');
+}
+
+/* ===== Calendar ===== */
+let calYear=new Date().getFullYear(),calMonth=new Date().getMonth(),calEventQuery="",calSearchFocused=false,editingEventId=null;
+function calItemsForDate(ds){return{sessions:db.sessions.filter(s=>s.date===ds),matches:db.matches.filter(m=>m.date===ds),events:db.events.filter(e=>e.date===ds)}}
+function fmtCalDate(ds){let d=new Date(ds+"T00:00:00");return d.toLocaleDateString(undefined,{weekday:"long",day:"numeric",month:"long",year:"numeric"})}
+function calPrevMonth(){calMonth--;if(calMonth<0){calMonth=11;calYear--}calendar()}
+function calNextMonth(){calMonth++;if(calMonth>11){calMonth=0;calYear++}calendar()}
+function calToday(){let t=new Date();calYear=t.getFullYear();calMonth=t.getMonth();calendar()}
+function calendar(){
+ let first=new Date(calYear,calMonth,1);
+ let startDow=first.getDay();
+ let daysInMonth=new Date(calYear,calMonth+1,0).getDate();
+ let monthLabel=first.toLocaleDateString(undefined,{month:"long",year:"numeric"});
+ let cells="";
+ for(let i=0;i<startDow;i++)cells+=`<div class="calCell calEmpty"></div>`;
+ for(let d=1;d<=daysInMonth;d++){
+  let ds=`${calYear}-${String(calMonth+1).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
+  let items=calItemsForDate(ds);
+  let dots="";
+  if(items.sessions.length)dots+=`<span class="calDot calDotS" title="${items.sessions.length} session(s)"></span>`;
+  if(items.matches.length)dots+=`<span class="calDot calDotM" title="${items.matches.length} match(es)"></span>`;
+  if(items.events.length)dots+=`<span class="calDot calDotE" title="${items.events.length} reminder(s)/event(s)"></span>`;
+  cells+=`<div class="calCell${ds===today()?" calToday":""}" onclick="openCalDay('${ds}')"><div class="calDayNum">${d}</div><div class="calDots">${dots}</div></div>`;
+ }
+ let upcoming=db.events.slice().filter(e=>e.date>=today()).sort((a,b)=>String(a.date||"").localeCompare(String(b.date||"")));
+ if(calEventQuery){let q=calEventQuery.toLowerCase();upcoming=upcoming.filter(e=>[e.title,e.notes].some(v=>String(v||"").toLowerCase().includes(q)))}
+ document.getElementById("calendar").innerHTML=head("Calendar","Training sessions, matches, reminders and events in one place.")
+ +`<div class="toolbar noPrint"><button class="btn secondary" onclick="calPrevMonth()">‹ Prev</button><button class="btn secondary" onclick="calToday()">Today</button><button class="btn secondary" onclick="calNextMonth()">Next ›</button><button class="btn primary" onclick="newCalEvent()">+ Add Reminder / Event</button><button class="btn secondary" onclick="calMonthReport()">Print Month</button></div>
+ <h2 class="section">${monthLabel}</h2>
+ <div class="card"><div class="calGrid calHead">${["Sun","Mon","Tue","Wed","Thu","Fri","Sat"].map(d=>`<div class="calCell calHeadCell">${d}</div>`).join("")}</div><div class="calGrid">${cells}</div><div class="calLegend"><span class="calDot calDotS"></span> Session<span class="calDot calDotM"></span> Match<span class="calDot calDotE"></span> Reminder / Event</div></div>
+ <h2 class="section">Upcoming Reminders &amp; Events</h2>
+ <div class="card" style="margin-bottom:15px"><label>Search<input id="calSearch" value="${esc(calEventQuery)}" oninput="calEventQuery=this.value;calendar()" onfocus="calSearchFocused=true" onblur="calSearchFocused=false" placeholder="Search reminders and events..."></label></div>
+ <div class="card">${upcoming.length?upcoming.map(e=>`<div class="item"><div><b>${esc(e.title)}</b><div class="muted">${esc(e.date)}${e.time?" · "+esc(e.time):""} · ${esc(e.type||"Event")}</div><small>${esc(e.notes||"")}</small></div><div class="toolbar"><button class="btn secondary" onclick="editCalEvent('${e.id}')">Edit</button><button class="btn danger" onclick="delCalEvent('${e.id}')">×</button></div></div>`).join(""):empty("No upcoming reminders or events.")}</div>`;
+ let sEl=document.getElementById("calSearch");if(sEl&&calSearchFocused){sEl.focus();const v=sEl.value;sEl.setSelectionRange(v.length,v.length)}
+}
+function openCalDay(ds){
+ let items=calItemsForDate(ds);
+ let body=`<div class="sheetHead"><h2>${esc(fmtCalDate(ds))}</h2><button class="x" onclick="closeM()">×</button></div>
+ <h2 class="section" style="margin-top:0">Training Sessions</h2><div class="card">${items.sessions.length?items.sessions.map(s=>`<div class="item"><div><b>${esc(s.title||"Session")}</b><div class="muted">${esc(s.squad||"")}${s.duration?" · "+esc(s.duration)+" min":""}</div><small>${esc(s.objectives||"")}</small></div></div>`).join(""):empty("No sessions.")}</div>
+ <h2 class="section">Matches</h2><div class="card">${items.matches.length?items.matches.map(m=>`<div class="item"><div><b>${esc(m.team||"My Team")} vs ${esc(m.opp||"Opposition")}</b><div class="muted">${esc(m.result||"")}</div></div><button class="btn secondary" onclick="closeM();matchReportView('${m.id}')">Report</button></div>`).join(""):empty("No matches.")}</div>
+ <h2 class="section">Reminders &amp; Events</h2><div class="card">${items.events.length?items.events.map(e=>`<div class="item"><div><b>${esc(e.title)}</b><div class="muted">${e.time?esc(e.time)+" · ":""}${esc(e.type||"Event")}</div><small>${esc(e.notes||"")}</small></div><div class="toolbar"><button class="btn secondary" onclick="editCalEvent('${e.id}')">Edit</button><button class="btn danger" onclick="delCalEvent('${e.id}')">×</button></div></div>`).join(""):empty("No reminders or events.")}</div>
+ <button class="btn primary" style="margin-top:10px" onclick="newCalEvent('${ds}')">+ Add Reminder / Event for this day</button>`;
+ modal(body);
+}
+function calEventFormHtml(ev,mode){ev=ev||{};return `<div class="sheetHead"><h2>${mode==="edit"?"Edit Reminder / Event":"New Reminder / Event"}</h2><button class="x" onclick="closeM()">×</button></div><form class="formgrid" onsubmit="saveCalEvent(event)"><label>Date<input type="date" name="date" value="${esc(ev.date||today())}" required></label><label>Time (optional)<input type="time" name="time" value="${esc(ev.time||"")}"></label><label>Type<select name="type"><option ${ev.type==="Reminder"?"selected":""}>Reminder</option><option ${ev.type==="Event"?"selected":""}>Event</option></select></label><label class="full">Title<input name="title" value="${esc(ev.title||"")}" required></label><label class="full">Notes<textarea name="notes">${esc(ev.notes||"")}</textarea></label><button class="btn primary">Save</button></form>`}
+function newCalEvent(prefillDate){editingEventId=null;modal(calEventFormHtml({date:prefillDate||today()},"new"))}
+function editCalEvent(id){let ev=db.events.find(x=>x.id===id);if(!ev)return;editingEventId=id;modal(calEventFormHtml(ev,"edit"))}
+function saveCalEvent(e){
+ e.preventDefault();
+ let ev=Object.fromEntries(new FormData(e.target));
+ if(editingEventId){let idx=db.events.findIndex(x=>x.id===editingEventId);if(idx>-1){ev.id=editingEventId;db.events[idx]=ev}}
+ else{ev.id=uid("ev");db.events.push(ev)}
+ editingEventId=null;closeM();save();
+}
+function delCalEvent(id){if(confirm("Delete this reminder/event?")){db.events=db.events.filter(x=>x.id!==id);save()}}
+function calMonthReport(){
+ let mk=`${calYear}-${String(calMonth+1).padStart(2,"0")}`;
+ let ss=db.sessions.filter(s=>String(s.date||"").slice(0,7)===mk).sort((a,b)=>String(a.date).localeCompare(String(b.date)));
+ let mm=db.matches.filter(m=>String(m.date||"").slice(0,7)===mk).sort((a,b)=>String(a.date).localeCompare(String(b.date)));
+ let ee=db.events.filter(e=>String(e.date||"").slice(0,7)===mk).sort((a,b)=>String(a.date).localeCompare(String(b.date)));
+ let label=new Date(calYear,calMonth,1).toLocaleDateString(undefined,{month:"long",year:"numeric"});
+ reportShell(`Calendar — ${label}`,`${ss.length} sessions · ${mm.length} matches · ${ee.length} reminders/events`,
+ `<h2>Training Sessions</h2>${ss.length?ss.map(s=>`<div class="card"><b>${esc(s.date)} · ${esc(s.title||"Session")}</b><p>${esc(s.objectives||"")}</p></div>`).join(""):empty("No sessions this month.")}
+ <h2>Matches</h2>${mm.length?mm.map(m=>`<div class="card"><b>${esc(m.date)} · ${esc(m.team||"My Team")} vs ${esc(m.opp||"Opposition")}</b><p>${esc(m.result||"")}</p></div>`).join(""):empty("No matches this month.")}
+ <h2>Reminders &amp; Events</h2>${ee.length?ee.map(e=>`<div class="card"><b>${esc(e.date)}${e.time?" "+esc(e.time):""} · ${esc(e.title)}</b><p>${esc(e.notes||"")}</p></div>`).join(""):empty("No reminders or events this month.")}`);
+}
+/* ===== End Calendar ===== */
+
+/* ===== Coach Profiles & Backup ===== */
+function saveProfiles(p){localStorage.setItem(PROFILES_KEY,JSON.stringify(p))}
+function newProfile(){
+ let name=prompt("Profile name (e.g. your name or academy):");
+ if(!name||!name.trim())return;
+ let club=prompt("Club / academy (optional):")||"";
+ let profiles=getProfiles();
+ let id=uid("prof");
+ profiles.push({id,name:name.trim(),club:club.trim(),key:"coachbook_"+id});
+ saveProfiles(profiles);
+ switchProfile(id);
+}
+function switchProfile(id){localStorage.setItem(ACTIVE_KEY,id);location.reload()}
+function renameProfile(id){
+ let profiles=getProfiles();let p=profiles.find(x=>x.id===id);if(!p)return;
+ let name=prompt("Profile name:",p.name);if(!name||!name.trim())return;
+ let club=prompt("Club / academy (optional):",p.club||"");
+ p.name=name.trim();p.club=(club||"").trim();
+ saveProfiles(profiles);
+ accountPage();
+}
+function deleteProfile(id){
+ let profiles=getProfiles();
+ if(profiles.length<=1){alert("You need at least one profile.");return}
+ if(!confirm("Remove this profile from your list? Its data stays in local storage but won't be shown until re-added.")) return;
+ let activeId=localStorage.getItem(ACTIVE_KEY)||"default";
+ profiles=profiles.filter(p=>p.id!==id);
+ saveProfiles(profiles);
+ if(activeId===id){localStorage.setItem(ACTIVE_KEY,profiles[0].id);location.reload()}
+ else accountPage();
+}
+function exportBackup(){
+ let blob=new Blob([JSON.stringify(db,null,2)],{type:"application/json"});
+ let url=URL.createObjectURL(blob);
+ let a=document.createElement("a");a.href=url;a.download="CoachBook-Pro-Backup-"+today()+".json";
+ document.body.appendChild(a);a.click();document.body.removeChild(a);
+ URL.revokeObjectURL(url);
+ localStorage.setItem("coachbook_last_backup",today());
+ accountPage();
+}
+function handleRestoreFile(input){
+ let file=input.files&&input.files[0];if(!file)return;
+ let reader=new FileReader();
+ reader.onload=()=>{
+  let parsed;
+  try{parsed=JSON.parse(reader.result)}catch(e){alert("Could not read this file — it may not be a valid backup.");input.value="";return}
+  if(!parsed||typeof parsed!=="object"){alert("This doesn't look like a valid CoachBook Pro backup file.");input.value="";return}
+  if(!confirm("Restore this backup? This will replace all current data for this profile. This cannot be undone.")){input.value="";return}
+  ["sessions","reflections","players","assessments","matches","drills","events"].forEach(k=>{parsed[k]=Array.isArray(parsed[k])?parsed[k]:[]});
+  parsed.matches.forEach(m=>{if(!m.id)m.id=uid("m")});
+  parsed.drills.forEach(d=>{if(!d.id)d.id=uid("drill")});
+  db=parsed;
+  localStorage.setItem(DB_KEY,JSON.stringify(db));
+  alert("Backup restored successfully.");
+  location.reload();
+ };
+ reader.readAsText(file);
+}
+function accountPage(){
+ let profiles=getProfiles();
+ let active=getActiveProfile();
+ let lastBackup=localStorage.getItem("coachbook_last_backup");
+ let daysSince=lastBackup?Math.floor((new Date(today())-new Date(lastBackup))/86400000):null;
+ let badge=document.getElementById("profileBadge");if(badge)badge.textContent=active.name;
+ document.getElementById("account").innerHTML=head("Account & Backup","Manage coach profiles and keep your data safe.")
+ +`<h2 class="section" style="margin-top:0">Coach Profiles</h2>
+ <div class="muted" style="margin-bottom:12px">Local profiles for organising data on this device — not secure logins. Real multi-device accounts with cloud sync are planned for a future update.</div>
+ <div class="card">${profiles.map(p=>`<div class="item"><div><b>${esc(p.name)}</b>${p.id===active.id?` <span class="tag">Active</span>`:""}<div class="muted">${esc(p.club||"")}</div></div><div class="toolbar">${p.id!==active.id?`<button class="btn secondary" onclick="switchProfile('${p.id}')">Switch</button>`:""}<button class="btn secondary" onclick="renameProfile('${p.id}')">Rename</button>${profiles.length>1?`<button class="btn danger" onclick="deleteProfile('${p.id}')">Delete</button>`:""}</div></div>`).join("")}</div>
+ <button class="btn primary" style="margin-top:12px" onclick="newProfile()">+ Add Coach Profile</button>
+
+ <h2 class="section">Backup &amp; Restore</h2>
+ ${daysSince!==null&&daysSince>=7?`<div class="card" style="border-color:#c99a2e;margin-bottom:12px">It's been ${daysSince} days since your last backup — consider exporting one now.</div>`:""}
+ <div class="card">
+ <p class="muted">Export a full backup of this profile's data, or restore from a previous backup file.</p>
+ <div class="toolbar">
+ <button class="btn primary" onclick="exportBackup()">Export Backup (.json)</button>
+ <label class="btn secondary" style="cursor:pointer">Restore from Backup<input type="file" accept="application/json" style="display:none" onchange="handleRestoreFile(this)"></label>
+ <button class="btn secondary" onclick="exportExcel()">Export Excel</button>
+ </div>
+ ${lastBackup?`<div class="muted" style="margin-top:8px">Last backup: ${esc(lastBackup)}</div>`:""}
+ </div>
+
+ <h2 class="section">Commercial Roadmap</h2>
+ <div class="card muted">Coming in future updates: secure coach &amp; academy accounts, cloud sync across devices, subscriptions, multiple coaches with role permissions, and shared players/reports.</div>`;
+}
+/* ===== End Coach Profiles & Backup ===== */
+
+function quick(){modal(`<div class="sheetHead"><h2>Create</h2><button class="x" onclick="closeM()">×</button></div><div class="grid g2"><button class="btn secondary" onclick="closeM();newSession()">Session Plan</button><button class="btn secondary" onclick="closeM();newReflection()">Self Reflection</button><button class="btn secondary" onclick="closeM();newPlayer()">Player</button><button class="btn secondary" onclick="closeM();newAssessment()">Assessment</button><button class="btn secondary" onclick="closeM();newDrill()">Drill</button><button class="btn secondary" onclick="closeM();newMatch()">Match</button><button class="btn secondary" onclick="closeM();newCalEvent()">Reminder / Event</button></div>`)}
+function renderAll(){dashboard();sessions();reflections();players();assessments();drills();matches();reports();calendar();accountPage()}nav();renderAll();
+</script></body></html>
