@@ -970,8 +970,12 @@ function sessionFormHtml(s,mode){
  <label>Duration (minutes)<input type="number" name="duration" value="${esc(s.duration||90)}"></label>
  <label>Primary focus<select name="focus">${["Batting","Bowling","Fielding","Wicketkeeping","Team","Fitness"].map(f=>`<option ${s.focus===f?"selected":""}>${f}</option>`).join("")}</select></label>
  <label>Venue<input name="venue" list="venueDatalist" value="${esc(s.venue||"")}"><datalist id="venueDatalist">${venueOptions()}</datalist></label>
- <div class="full" id="sessionAttendanceWrap" style="${sType==="player"?"display:none":""}"><label style="margin-bottom:6px">Attendance</label>${db.players.length?`<div class="skillPick">${db.players.map(p=>`<label><input type="checkbox" name="attendees" value="${esc(p.name)}" ${(s.attendees||[]).includes(p.name)?"checked":""}> ${esc(p.name)}</label>`).join("")}</div>`:`<div class="muted">No players yet — add players to enable attendance tracking.</div>`}</div>
- <div class="full"><label style="margin-bottom:6px">Objective Categories</label><div class="chipGrid2">${["Technical improvement","Tactical understanding","Physical development","Mental skills","Teamwork & communication","Match preparation","Specific skill development"].map(c=>`<label><input type="checkbox" name="objectiveTags" value="${esc(c)}" ${(s.objectiveTags||[]).includes(c)?"checked":""}> ${esc(c)}</label>`).join("")}</div></div>
+ <div class="full" id="sessionAttendanceWrap" style="${sType==="player"?"display:none":""}">${formSectionHead("attendance","Attendance",false)}
+ <div id="formSec-attendance" style="display:none;margin-top:10px">${db.players.length?`<div class="skillPick">${db.players.map(p=>`<label><input type="checkbox" name="attendees" value="${esc(p.name)}" ${(s.attendees||[]).includes(p.name)?"checked":""} onchange="updateFormSectionCount('attendance','marked present')"> ${esc(p.name)}</label>`).join("")}</div>`:`<div class="muted">No players yet — add players to enable attendance tracking.</div>`}</div>
+ </div>
+ <div class="full">${formSectionHead("objectiveTags","Objective Categories",false)}
+ <div id="formSec-objectiveTags" style="display:none;margin-top:10px"><div class="chipGrid2">${["Technical improvement","Tactical understanding","Physical development","Mental skills","Teamwork & communication","Match preparation","Specific skill development"].map(c=>`<label><input type="checkbox" name="objectiveTags" value="${esc(c)}" ${(s.objectiveTags||[]).includes(c)?"checked":""} onchange="updateFormSectionCount('objectiveTags','selected')"> ${esc(c)}</label>`).join("")}</div></div>
+ </div>
  <label class="full">Objectives <span class="muted" style="font-weight:400">(specifics for this session, beyond the categories above)</span><textarea name="objectives">${esc(s.objectives||"")}</textarea></label>
  <label class="full">Warm-up / Preparation<textarea name="warmup">${esc(s.warmup||"")}</textarea></label>
  <label class="full">Main Skill Block<textarea name="main">${esc(s.main||"")}</textarea></label>
@@ -990,6 +994,7 @@ function openSessionForm(existing,mode){
  editingSessionId=mode==="edit"?existing.id:null;
  modal(sessionFormHtml(existing,mode));
  renderDrillLinks("main");renderDrillLinks("game");renderSessionAttachmentPreview();
+ updateFormSectionCount("attendance","marked present");updateFormSectionCount("objectiveTags","selected");
 }
 function newSession(){openSessionForm(null,"new")}
 function editSession(id){let s=db.sessions.find(x=>x.id===id);if(!s)return;openSessionForm(s,"edit")}
@@ -1442,6 +1447,31 @@ function toggleMatchSection(id){
 }
 function matchSectionHead(id,label,openByDefault){
  return `<div class="reportGroupHeader${openByDefault?" open":""}" id="matchSecHead-${id}" onclick="toggleMatchSection('${id}')" style="margin-top:14px"><span>${esc(label)}</span><span class="chev">${icon("chevronRight",16)}</span></div>`;
+}
+// Generic version of the same collapsible pattern above, usable by any
+// form (not just Match Centre) — reused here for Session Plan's
+// Attendance and Objective Categories sections, both of which can get
+// long and add real clutter when there are many players or several
+// categories selected. Pure DOM show/hide, never a re-render, so it
+// can't discard unsaved input elsewhere in the same form.
+function toggleFormSection(id){
+ let body=document.getElementById("formSec-"+id);
+ let head=document.getElementById("formSecHead-"+id);
+ if(!body)return;
+ let isOpen=body.style.display!=="none";
+ body.style.display=isOpen?"none":"";
+ if(head)head.classList.toggle("open",!isOpen);
+}
+function formSectionHead(id,label,openByDefault){
+ return `<div class="reportGroupHeader${openByDefault?" open":""}" id="formSecHead-${id}" onclick="toggleFormSection('${id}')"><span>${esc(label)} <span class="muted" style="font-weight:400;font-size:var(--fs-2)" id="formSecCount-${id}"></span></span><span class="chev">${icon("chevronRight",16)}</span></div>`;
+}
+function updateFormSectionCount(id,suffix){
+ let box=document.getElementById("formSec-"+id);
+ let countEl=document.getElementById("formSecCount-"+id);
+ if(!box||!countEl)return;
+ let total=box.querySelectorAll('input[type="checkbox"]').length;
+ let checked=box.querySelectorAll('input[type="checkbox"]:checked').length;
+ countEl.textContent=total?`(${checked} ${suffix})`:"";
 }
 function matchFormHtml(m,mode){m=m||{};return `<div class="sheetHead"><h2>${mode==="edit"?"Edit Match":"New Match"}</h2><button class="x" onclick="closeM()">×</button></div>
 <form id="matchForm" onsubmit="saveMatch(event)">
