@@ -1,0 +1,1447 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Live Session">
+<meta name="theme-color" content="#0a1420">
+<title>Live Session — ProCoach OS</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@600;700;800&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; height: 100%; background: #0a1420; }
+  #app {
+    --bg:#0a1420; --card:#111d30; --card-border:rgba(255,255,255,0.07);
+    --accent:#9b6bd6; --accent-dim:rgba(155,107,214,0.16);
+    --bowl:#22c58b; --bat:#e0ab2c;
+    --text:#eef2f6; --text-dim:#8b96a5; --danger:#ff6b52;
+    --turf-deep:#173d20; --turf-mid:#204d29;
+    font-family:'Inter',sans-serif; background:var(--bg); color:var(--text);
+    min-height:100%; padding:10px;
+    padding-top: max(14px, env(safe-area-inset-top));
+    padding-bottom: max(14px, env(safe-area-inset-bottom));
+  }
+  .pm-header{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:6px;}
+  .pm-title{font-size:19px;font-weight:800;color:var(--accent);letter-spacing:-0.01em;font-family:'Poppins',sans-serif;}
+  .pm-subtitle{font-size:10px;text-transform:uppercase;letter-spacing:.12em;color:var(--text-dim);font-weight:600;}
+
+  .pm-input{background:var(--card);border:1px solid var(--card-border);border-radius:10px;padding:9px 12px;font-family:'Inter',sans-serif;font-size:13.5px;color:var(--text);min-height:38px;width:100%;}
+  .pm-input:focus{outline:2px solid var(--accent);outline-offset:1px;}
+  .pm-input-date{width:130px;}
+  .pm-label{font-size:10.5px;text-transform:uppercase;letter-spacing:.08em;color:var(--text-dim);font-weight:700;margin-bottom:5px;}
+
+  .pm-roster-block{margin-bottom:6px;}
+  .pm-roster-title{font-size:10px;text-transform:uppercase;letter-spacing:.1em;font-weight:700;margin-bottom:5px;display:flex;justify-content:space-between;align-items:center;}
+  .pm-roster-title.bowl{color:var(--bowl);}
+  .pm-roster-title.bat{color:var(--bat);}
+  .pm-bowler-row{display:flex;gap:6px;overflow-x:auto;padding:2px 2px 6px;-webkit-overflow-scrolling:touch;}
+  .pm-tab{flex-shrink:0;font-family:'Inter',sans-serif;font-size:12.5px;font-weight:600;background:var(--card);border:1px solid var(--card-border);color:var(--text-dim);border-radius:999px;padding:8px 14px;cursor:pointer;min-height:36px;}
+  .pm-tab.active{background:var(--accent);color:#04140d;border-color:var(--accent);}
+  .pm-tab.active-bowl{background:rgba(34,197,139,0.18);color:var(--bowl);border-color:var(--bowl);}
+  .pm-tab.active-bat{background:rgba(224,171,44,0.18);color:var(--bat);border-color:var(--bat);}
+  .pm-tab.add{color:var(--accent);border:1px dashed var(--accent);background:transparent;}
+
+  .pm-mode-tabs{display:flex;gap:8px;margin-bottom:6px;}
+  .pm-mode-tab{flex:1;text-align:center;background:var(--card);border:1px solid var(--card-border);color:var(--text-dim);border-radius:12px;padding:9px 6px;font-family:'Poppins',sans-serif;font-weight:700;font-size:12px;cursor:pointer;}
+  .pm-mode-tab.active{background:var(--accent);color:#04140d;border-color:var(--accent);}
+
+  .pm-toolbar{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:4px;}
+  .pm-seg{display:inline-flex;border:1px solid var(--card-border);border-radius:999px;overflow:hidden;background:var(--card);}
+  .pm-seg button{background:transparent;color:var(--text-dim);border:none;padding:8px 12px;font-size:11.5px;font-weight:700;font-family:'Inter',sans-serif;cursor:pointer;min-height:36px;}
+  .pm-seg button.active{background:var(--accent);color:#04140d;}
+  .pm-over-indicator{font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--accent);font-weight:600;}
+
+  .pm-pitch-wrap{position:relative;background:linear-gradient(180deg,var(--turf-mid),var(--turf-deep));border-radius:20px;padding:10px;height:min(64vh,760px);display:flex;justify-content:center;align-items:center;border:1px solid var(--card-border);overflow:hidden;}
+  .pm-pitch-svg{height:100%;width:auto;display:block;cursor:crosshair;border-radius:8px;touch-action:manipulation;}
+  .pm-ground-svg{width:100%;height:100%;display:block;cursor:crosshair;touch-action:manipulation;}
+  .pm-corner-btn{position:absolute;top:8px;right:8px;z-index:15;}
+  .pm-mark-btn-wrap{position:absolute;bottom:14px;left:0;right:0;display:flex;justify-content:center;z-index:15;}
+  .pm-legend-row{display:flex;gap:9px;flex-wrap:wrap;margin-top:8px;font-size:10.5px;color:var(--text-dim);font-family:'Inter',sans-serif;}
+  .pm-legend-dot{width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:4px;}
+
+  .pm-chip-row{display:flex;gap:6px;overflow-x:auto;padding:8px 2px 2px;-webkit-overflow-scrolling:touch;}
+  .pm-chip{flex-shrink:0;font-family:'Inter',sans-serif;font-size:11.5px;font-weight:600;background:var(--card);border:1px solid var(--card-border);color:var(--text-dim);border-radius:999px;padding:7px 13px;cursor:pointer;min-height:34px;}
+  .pm-chip.active{background:var(--accent);color:#04140d;border-color:var(--accent);}
+
+  .pm-panel{background:var(--card);border:1px solid var(--card-border);border-radius:18px;padding:14px 16px;margin-top:12px;}
+  .pm-panel-title{font-family:'Poppins',sans-serif;font-weight:700;font-size:14px;color:var(--text);margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;}
+  .pm-panel-title .dim{color:var(--text-dim);font-weight:500;font-size:12px;}
+  .pm-seam{border:none;height:1px;background:var(--card-border);margin:12px 0;}
+  .pm-stat-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;}
+  .pm-stat{background:rgba(255,255,255,0.03);border:1px solid var(--card-border);border-radius:12px;padding:10px 8px;text-align:center;}
+  .pm-stat-val{font-family:'Poppins',sans-serif;font-size:18px;font-weight:800;color:var(--accent);}
+  .pm-stat-label{font-size:9px;text-transform:uppercase;letter-spacing:.05em;color:var(--text-dim);margin-top:2px;}
+  .pm-zone-row{display:flex;align-items:center;gap:8px;margin-bottom:7px;font-size:12px;}
+  .pm-zone-label{width:90px;flex-shrink:0;color:var(--text-dim);}
+  .pm-zone-bar-track{flex:1;height:7px;background:rgba(255,255,255,0.06);border-radius:4px;overflow:hidden;}
+  .pm-zone-bar-fill{height:100%;background:var(--accent);border-radius:4px;}
+  .pm-zone-count{width:18px;text-align:right;font-family:'IBM Plex Mono',monospace;color:var(--text);}
+
+  .pm-ot-table{border-collapse:collapse;width:100%;font-size:11px;font-family:'IBM Plex Mono',monospace;}
+  .pm-ot-table th{padding:4px 5px;text-align:center;font-weight:700;white-space:nowrap;}
+  .pm-ot-table td{padding:5px 4px;text-align:center;border-top:1px solid var(--card-border);border-radius:4px;}
+  .pm-ot-table .pm-ot-label{text-align:left;white-space:nowrap;color:var(--text-dim);font-family:'Inter',sans-serif;font-size:11px;padding-right:8px;}
+
+  .pm-btn{display:inline-flex;align-items:center;gap:6px;background:var(--accent);color:#04140d;border:none;border-radius:999px;padding:10px 15px;font-family:'Inter',sans-serif;font-size:12.5px;font-weight:700;cursor:pointer;min-height:40px;touch-action:manipulation;}
+  .pm-btn.secondary{background:var(--card);color:var(--text);border:1px solid var(--card-border);}
+  .pm-btn.danger{background:var(--card);color:var(--danger);border:1px solid var(--danger);}
+  .pm-btn.small{padding:6px 11px;min-height:30px;font-size:11px;}
+  .pm-btn:disabled{opacity:.4;}
+  .pm-btn-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;}
+
+  .pm-ball-list{max-height:220px;overflow-y:auto;}
+  .pm-ball-row{display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--card-border);font-size:12px;}
+  .pm-ball-row:last-child{border-bottom:none;}
+  .pm-ball-tag{display:inline-flex;align-items:center;gap:7px;font-family:'IBM Plex Mono',monospace;color:var(--text);}
+  .pm-ball-swatch{width:9px;height:9px;border-radius:50%;display:inline-block;}
+  .pm-x-btn{background:rgba(255,255,255,0.06);border:none;color:var(--text-dim);cursor:pointer;padding:6px 10px;font-size:14px;border-radius:8px;min-height:32px;min-width:32px;touch-action:manipulation;}
+  .pm-x-btn:active{color:var(--danger);}
+
+  .pm-popover{position:absolute;background:var(--card);border:1.5px solid var(--accent);border-radius:12px;padding:8px;box-shadow:0 12px 30px rgba(0,0,0,.5);display:grid;grid-template-columns:repeat(3,1fr);gap:5px;z-index:20;width:196px;}
+  .pm-outcome-btn{font-family:'IBM Plex Mono',monospace;font-size:10.5px;font-weight:700;border:none;border-radius:6px;padding:9px 3px;cursor:pointer;color:#04140d;min-height:36px;touch-action:manipulation;}
+
+  .pm-empty-hint{position:absolute;bottom:10px;left:0;right:0;text-align:center;color:rgba(244,241,232,0.85);font-size:12px;font-style:italic;pointer-events:none;padding:0 12px;}
+  .pm-status{font-size:12px;color:var(--accent);margin-top:8px;}
+  .pm-callout{background:var(--accent-dim);border:1px solid var(--accent);border-radius:14px;padding:10px 13px;font-size:12.5px;line-height:1.5;color:var(--text);margin-top:8px;}
+  .pm-load-list{max-height:260px;overflow-y:auto;}
+  .pm-load-row{display:flex;justify-content:space-between;align-items:center;padding:10px;border:1px solid var(--card-border);border-radius:12px;margin-bottom:8px;background:rgba(255,255,255,0.02);font-size:12.5px;}
+  .pm-modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:50;padding:16px;}
+  .pm-modal{background:var(--card);border:1px solid var(--card-border);border-radius:18px;padding:18px;width:100%;max-width:420px;max-height:80vh;overflow-y:auto;}
+  .pm-bowler-editor-row{display:flex;flex-direction:column;gap:4px;margin-bottom:12px;}
+
+  #print-report{display:none;}
+  @media print {
+    html, body { background: #fff !important; }
+    body * { visibility: hidden; }
+    #print-report, #print-report * { visibility: visible; }
+    #print-report{ display:block; position:absolute; left:0; top:0; width:100%; background:#fff; color:#141414; font-family:Arial,Helvetica,sans-serif; }
+    .pr-player{ padding:16px 22px; page-break-after:always; }
+    .pr-player:last-child{ page-break-after:auto; }
+    .pr-head{ display:flex; justify-content:space-between; align-items:baseline; border-bottom:2px solid #24507a; padding-bottom:8px; margin-bottom:10px; }
+    .pr-head h1{ font-size:17px; margin:0; color:#24507a; }
+    .pr-meta{ font-size:11px; color:#555; }
+    .pr-stats{ display:flex; gap:8px; flex-wrap:wrap; margin-bottom:10px; }
+    .pr-stat{ border:1px solid #ccc; border-radius:6px; padding:5px 9px; font-size:10.5px; text-align:center; min-width:58px; }
+    .pr-charts{ display:flex; gap:18px; align-items:flex-start; margin-bottom:14px; }
+    .pr-charts svg{ max-height:280px; width:auto; }
+    .pr-stat b{ display:block; font-size:14px; color:#24507a; }
+    .pr-table{ width:100%; border-collapse:collapse; font-size:10.5px; margin-bottom:10px; }
+    .pr-table th, .pr-table td{ border:1px solid #ccc; padding:3px 6px; text-align:left; }
+    .pr-table th{ background:#eef2f6; }
+    .pr-title{ font-size:20px; font-weight:800; color:#24507a; margin-bottom:2px; }
+    .pr-sub{ font-size:11px; color:#555; margin-bottom:14px; }
+  }
+</style>
+<script>// ===== Shared player roster bridge (reads the main ProCoach OS app's =====
+// ===== active coach profile — read-only, fails silently if anything =====
+// ===== is missing so these tools keep working exactly as before.    =====
+var _mainAppPlayerNamesCache=null;
+function loadMainAppPlayerNames(){
+ return new Promise(function(resolve){
+  try{
+   var profiles=null;
+   try{profiles=JSON.parse(localStorage.getItem("coachbook_profiles"))}catch(e){}
+   if(!Array.isArray(profiles)||!profiles.length){resolve([]);return}
+   var activeId=localStorage.getItem("coachbook_active_profile")||"default";
+   var profile=profiles.find(function(p){return p.id===activeId})||profiles[0];
+   if(!profile||!profile.key){resolve([]);return}
+   var req=indexedDB.open("coachbook_idb");
+   req.onerror=function(){resolve([])};
+   req.onsuccess=function(){
+    try{
+     var idb=req.result;
+     if(!idb.objectStoreNames.contains("profiles")){resolve([]);return}
+     var tx=idb.transaction("profiles","readonly");
+     var getReq=tx.objectStore("profiles").get(profile.key);
+     getReq.onerror=function(){resolve([])};
+     getReq.onsuccess=function(){
+      var db=getReq.result;
+      var names=(db&&Array.isArray(db.players))?db.players.map(function(p){return p.name}).filter(Boolean):[];
+      resolve(Array.from(new Set(names)).sort());
+     };
+    }catch(e){resolve([])}
+   };
+  }catch(e){resolve([])}
+ });
+}
+// Call once on page load, passing whichever input id(s) this page currently
+// has on screen — loads and caches the roster, populates the datalist, and
+// (since this resolves after the very first render already happened) also
+// attaches the input(s) itself once the data is actually ready.
+function initPlayerAutocomplete(inputIds){
+ loadMainAppPlayerNames().then(function(names){
+  _mainAppPlayerNamesCache=names;
+  if(!names.length)return;
+  var dl=document.getElementById("mainAppPlayerList");
+  if(!dl){dl=document.createElement("datalist");dl.id="mainAppPlayerList";document.body.appendChild(dl)}
+  dl.innerHTML=names.map(function(n){return '<option value="'+n.replace(/&/g,"&amp;").replace(/"/g,"&quot;")+'">'}).join("");
+  if(inputIds&&inputIds.length)attachPlayerAutocomplete(inputIds);
+ });
+}
+// Call after every render — cheap, synchronous, no IndexedDB access.
+// Safe to call even before initPlayerAutocomplete resolves (does nothing yet).
+function attachPlayerAutocomplete(inputIds){
+ if(!_mainAppPlayerNamesCache||!_mainAppPlayerNamesCache.length)return;
+ inputIds.forEach(function(id){
+  var el=document.getElementById(id);
+  if(el&&!el.hasAttribute("list"))el.setAttribute("list","mainAppPlayerList");
+ });
+}
+</script>
+</head>
+<body>
+<div id="app"></div>
+<div id="print-report"></div>
+<script>
+(function(){
+  var OUTCOMES = [
+    { id:"dot", label:"Dot", runs:0, color:"#7d93a3" },
+    { id:"1", label:"1 run", runs:1, color:"#4fb87a" },
+    { id:"2", label:"2 runs", runs:2, color:"#2ec4c4" },
+    { id:"3", label:"3 runs", runs:3, color:"#c9793d" },
+    { id:"4", label:"FOUR", runs:4, color:"#3d8bd6" },
+    { id:"6", label:"SIX", runs:6, color:"#e0ab2c" },
+    { id:"W", label:"Wicket", runs:0, color:"#ff6b52" },
+    { id:"wd", label:"Wide", runs:1, color:"#b98ce0" },
+    { id:"nb", label:"No ball", runs:1, color:"#b98ce0" },
+  ];
+  var outcomeMap = {}; OUTCOMES.forEach(function(o){ outcomeMap[o.id] = o; });
+  outcomeMap["_none"] = { id:"_none", label:"Pitched (no outcome)", runs:0, color:"#eef2f6" };
+
+  var DISMISSAL_TYPES = ["Bowled","Caught","LBW","Stumped","Run out","Hit wicket","Other"];
+  var SHOT_TYPES = ["Leave","Defend","Drive","Cut","Pull/Hook","Sweep","Flick","Loft","Edge","Other"];
+  var SPIN_TYPES = ["Off-spin","Leg-spin"];
+
+  var PITCH_LENGTH_M = 20.12;
+  var LENGTH_ZONES = [
+    { id:"yorker", label:"Yorker", from:0, to:1 },
+    { id:"full", label:"Full", from:1, to:3 },
+    { id:"good", label:"Good length", from:3, to:6 },
+    { id:"short", label:"Short", from:6, to:9 },
+    { id:"bouncer", label:"Bouncer", from:9, to:PITCH_LENGTH_M },
+  ];
+  var VB_W = 200, VB_H = 600, RULER_W = 36, VB_W_TOTAL = VB_W + RULER_W;
+  var LINE_ZONES = [
+    { from:0,   to:58  },{ from:58,  to:79  },{ from:79,  to:93  },
+    { from:93,  to:107 },{ from:107, to:121 },{ from:121, to:142 },{ from:142, to:200 },
+  ];
+  var LINE_LABELS_RHB = ["Outside off","Just outside off","Off","Middle","Leg","Just outside leg","Outside leg"];
+  var LINE_LABELS_LHB = ["Outside leg","Just outside leg","Leg","Middle","Off","Just outside off","Outside off"];
+  var POPPING_CREASE_M = 1.22, CREASE_HALF_W = 23;
+  var GW_SIZE = 320, GW_CX = 160, GW_CY = 160, GW_R = 144, GW_INNER_R = 61;
+  var MINI_PITCH_LEN = 50, MINI_PITCH_W = 15;
+  var BAT_Y = GW_CY - MINI_PITCH_LEN/2;
+
+  function lengthZoneFor(yPct){
+    var d = (yPct/100)*PITCH_LENGTH_M;
+    for (var i=0;i<LENGTH_ZONES.length;i++){ var z=LENGTH_ZONES[i]; if (d>=z.from && d<z.to) return z; }
+    return LENGTH_ZONES[LENGTH_ZONES.length-1];
+  }
+  function lineZoneIndex(xPct){
+    var x = (xPct/100)*VB_W;
+    for (var i=0;i<LINE_ZONES.length;i++){ if (x>=LINE_ZONES[i].from && x<LINE_ZONES[i].to) return i; }
+    return LINE_ZONES.length-1;
+  }
+  function lineLabel(xPct, hand){ return (hand==="LHB"?LINE_LABELS_LHB:LINE_LABELS_RHB)[lineZoneIndex(xPct)]; }
+  function clamp(n,lo,hi){ return Math.max(lo, Math.min(hi, n)); }
+  function uid(){ return Math.random().toString(36).slice(2,10); }
+  function hasWagon(b){ return b.wagonX!==null && b.wagonX!==undefined; }
+  function esc(s){ return String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;"); }
+  function keyName(n){ return (n||"").trim().toLowerCase(); }
+  function bowlTypeText(b){
+    if (b.bowlPace==="Spin" && b.bowlSpin && b.bowlArm==="LA"){
+      return b.bowlSpin==="Off-spin" ? "Left-arm spin" : "Chinaman";
+    }
+    return b.bowlArm+" "+(b.bowlPace==="Spin"&&b.bowlSpin ? b.bowlSpin : b.bowlPace);
+  }
+  function bowlTypeLabel(b){ return bowlTypeText(b)+" &middot; "+b.bowlSide; }
+  function hexToRgba(hex, alpha){
+    var h = hex.replace("#","");
+    var r = parseInt(h.substring(0,2),16), g = parseInt(h.substring(2,4),16), b = parseInt(h.substring(4,6),16);
+    return "rgba("+r+","+g+","+b+","+alpha+")";
+  }
+  var OUTCOME_COLS = ["dot","1","2","3","4","6","W"];
+  function outcomeColumnsTable(rows){
+    var html = '<div style="overflow-x:auto;"><table class="pm-ot-table"><thead><tr><th class="pm-ot-label"></th><th style="color:var(--text)">Balls</th>';
+    OUTCOME_COLS.forEach(function(cid){ var o = outcomeMap[cid]; html += '<th style="color:'+o.color+'">'+(cid==="W"?"Out":o.label)+'</th>'; });
+    html += '</tr></thead><tbody>';
+    rows.forEach(function(r){
+      html += '<tr><td class="pm-ot-label">'+esc(r.label)+'</td><td style="font-weight:700;color:var(--text)">'+r.balls.length+'</td>';
+      OUTCOME_COLS.forEach(function(cid){
+        var c = r.balls.filter(function(b){return b.outcome===cid;}).length;
+        var o = outcomeMap[cid];
+        var style = c>0 ? ("background:"+hexToRgba(o.color,0.22)+";color:"+o.color+";font-weight:700;") : "color:var(--text-dim);";
+        html += '<td style="'+style+'">'+(c||"&middot;")+'</td>';
+      });
+      html += '</tr>';
+    });
+    html += '</tbody></table></div>';
+    return html;
+  }
+  function printOutcomeColumnsTable(rows){
+    var html = '<table class="pr-table"><tr><th></th><th>Balls</th>';
+    OUTCOME_COLS.forEach(function(cid){ var o = outcomeMap[cid]; html += '<th style="color:'+o.color+'">'+(cid==="W"?"Out":o.label)+'</th>'; });
+    html += '</tr>';
+    rows.forEach(function(r){
+      html += '<tr><td>'+esc(r.label)+'</td><td style="font-weight:700;">'+r.balls.length+'</td>';
+      OUTCOME_COLS.forEach(function(cid){
+        var c = r.balls.filter(function(b){return b.outcome===cid;}).length;
+        var o = outcomeMap[cid];
+        var style = c>0 ? ("background:"+hexToRgba(o.color,0.16)+";color:"+o.color+";font-weight:700;") : "";
+        html += '<td style="'+style+'">'+(c||"")+'</td>';
+      });
+      html += '</tr>';
+    });
+    html += '</table>';
+    return html;
+  }
+
+  function declutterPitch(balls){
+    var pts = balls.map(function(b){ return Object.assign({}, b, { x:(b.xPct/100)*VB_W, y:(b.yPct/100)*VB_H }); });
+    var buckets = {};
+    pts.forEach(function(b){
+      var key = Math.round(b.x/13)+"_"+Math.round(b.y/13);
+      (buckets[key] = buckets[key] || []).push(b);
+    });
+    var out = [];
+    Object.keys(buckets).forEach(function(key){
+      var group = buckets[key], n = group.length;
+      var cx = group.reduce(function(s,g){return s+g.x;},0)/n;
+      var cy = group.reduce(function(s,g){return s+g.y;},0)/n;
+      group.forEach(function(b,i){
+        if (n===1){ out.push(Object.assign({}, b, { dx:b.x, dy:b.y })); return; }
+        var ring = Math.floor(i/7)+1;
+        var posInRing = i%7;
+        var countInRing = Math.min(7, n-Math.floor(i/7)*7);
+        var angle = (2*Math.PI*posInRing)/countInRing - Math.PI/2;
+        var r = 7.5*ring;
+        out.push(Object.assign({}, b, {
+          dx: clamp(cx + r*Math.cos(angle)*0.55, 5, VB_W-5),
+          dy: clamp(cy + r*Math.sin(angle), 14, VB_H-14),
+        }));
+      });
+    });
+    return out;
+  }
+  function withOvers(balls){
+    var legit = 0;
+    return balls.map(function(b){
+      var over = Math.floor(legit/6)+1, ballNo = (legit%6)+1;
+      if (b.outcome!=="wd" && b.outcome!=="nb") legit++;
+      return Object.assign({}, b, { over:over, ballNo:ballNo });
+    });
+  }
+  function statsFor(balls){
+    var legit = balls.filter(function(b){return b.outcome!=="wd" && b.outcome!=="nb";});
+    var totalRuns = balls.reduce(function(s,b){return s+outcomeMap[b.outcome].runs;},0);
+    var wickets = balls.filter(function(b){return b.outcome==="W";}).length;
+    var dots = balls.filter(function(b){return b.outcome==="dot";}).length;
+    var boundaries = balls.filter(function(b){return b.outcome==="4"||b.outcome==="6";}).length;
+    var economy = legit.length ? (totalRuns/legit.length)*6 : 0;
+    var strikeRate = legit.length ? (totalRuns/legit.length)*100 : 0;
+    var dotPct = legit.length ? (dots/legit.length)*100 : 0;
+    return { legit:legit, totalRuns:totalRuns, wickets:wickets, dismissals:wickets, dots:dots, boundaries:boundaries, economy:economy, strikeRate:strikeRate, dotPct:dotPct };
+  }
+  function popoverStyle(p, POP_W, POP_H){
+    var left = p.px+12, top = p.py+12;
+    if (left+POP_W > p.wrapW-6) left = p.px-POP_W-12;
+    if (top+POP_H > p.wrapH-6) top = p.py-POP_H-12;
+    left = clamp(left, 4, Math.max(4, p.wrapW-POP_W-4));
+    top = clamp(top, 4, Math.max(4, p.wrapH-POP_H-4));
+    return { left:left, top:top };
+  }
+
+  // ---------- shared pitch drawing ----------
+  function pitchCoreMarkup(viewMode, balls, drawDots){
+    var html = "";
+    for (var m=0; m<=20; m++){
+      var ry = (m/PITCH_LENGTH_M)*VB_H;
+      var major = m%2===0;
+      html += '<line x1="'+(major?-14:-9)+'" y1="'+ry+'" x2="-2" y2="'+ry+'" stroke="rgba(238,242,246,'+(major?0.55:0.28)+')" stroke-width="'+(major?1.2:0.8)+'"/>';
+      if (major) html += '<text x="-18" y="'+(ry+3)+'" text-anchor="end" font-size="8" font-family="IBM Plex Mono, monospace" fill="rgba(238,242,246,0.75)">'+m+'m</text>';
+    }
+    html += '<line x1="-2" y1="0" x2="-2" y2="'+VB_H+'" stroke="rgba(238,242,246,0.3)" stroke-width="1"/>';
+    LENGTH_ZONES.forEach(function(z,i){
+      var y1=(z.from/PITCH_LENGTH_M)*VB_H, y2=(z.to/PITCH_LENGTH_M)*VB_H;
+      html += '<rect x="0" y="'+y1+'" width="'+VB_W+'" height="'+(y2-y1)+'" fill="'+(i%2===0?"rgba(244,241,232,0.045)":"rgba(244,241,232,0)")+'"/>';
+    });
+    [58,79,93,107,121,142].forEach(function(x){ html += '<line x1="'+x+'" y1="0" x2="'+x+'" y2="'+VB_H+'" stroke="rgba(244,241,232,'+((x===93||x===107)?0.22:0.12)+')" stroke-width="1" stroke-dasharray="3 5"/>'; });
+    LENGTH_ZONES.forEach(function(z){
+      var y=(z.from/PITCH_LENGTH_M)*VB_H;
+      if (z.from>0) html += '<line x1="0" y1="'+y+'" x2="'+VB_W+'" y2="'+y+'" stroke="rgba(244,241,232,0.15)" stroke-width="1"/>';
+      html += '<text x="4" y="'+(((z.from+z.to)/2/PITCH_LENGTH_M)*VB_H)+'" fill="rgba(244,241,232,0.5)" font-size="9" font-family="IBM Plex Mono, monospace">'+z.label+'</text>';
+    });
+    var poppingYTop = (POPPING_CREASE_M / PITCH_LENGTH_M) * VB_H;
+    var poppingYBottom = VB_H - poppingYTop;
+    var cxL = 100 - CREASE_HALF_W, cxR = 100 + CREASE_HALF_W;
+    html += '<line x1="'+cxL+'" y1="0" x2="'+cxR+'" y2="0" stroke="#f4f1e8" stroke-width="2.5"/>';
+    html += '<line x1="'+cxL+'" y1="'+VB_H+'" x2="'+cxR+'" y2="'+VB_H+'" stroke="#f4f1e8" stroke-width="2.5"/>';
+    html += '<line x1="0" y1="'+poppingYTop+'" x2="'+VB_W+'" y2="'+poppingYTop+'" stroke="#f4f1e8" stroke-width="2"/>';
+    html += '<line x1="0" y1="'+poppingYBottom+'" x2="'+VB_W+'" y2="'+poppingYBottom+'" stroke="#f4f1e8" stroke-width="2"/>';
+    html += '<line x1="'+cxL+'" y1="0" x2="'+cxL+'" y2="'+poppingYTop+'" stroke="#f4f1e8" stroke-width="1.5" stroke-dasharray="1 2.5"/>';
+    html += '<line x1="'+cxR+'" y1="0" x2="'+cxR+'" y2="'+poppingYTop+'" stroke="#f4f1e8" stroke-width="1.5" stroke-dasharray="1 2.5"/>';
+    html += '<line x1="'+cxL+'" y1="'+VB_H+'" x2="'+cxL+'" y2="'+poppingYBottom+'" stroke="#f4f1e8" stroke-width="1.5" stroke-dasharray="1 2.5"/>';
+    html += '<line x1="'+cxR+'" y1="'+VB_H+'" x2="'+cxR+'" y2="'+poppingYBottom+'" stroke="#f4f1e8" stroke-width="1.5" stroke-dasharray="1 2.5"/>';
+    [0, 1].forEach(function(idx){
+      var stumpY = idx===0 ? 0 : VB_H - 16;
+      [86,100,114].forEach(function(x){
+        html += '<rect x="'+(x-2.4)+'" y="'+stumpY+'" width="4.8" height="16" rx="1.5" fill="#f2c14e" stroke="#3d2a12" stroke-width="1.1"/>';
+      });
+      html += '<rect x="82" y="'+(stumpY-2.5)+'" width="36" height="3.8" rx="1.6" fill="#f7dc8a" stroke="#3d2a12" stroke-width="0.9"/>';
+    });
+    html += '<text x="'+(VB_W/2)+'" y="'+(poppingYTop+14)+'" text-anchor="middle" fill="rgba(244,241,232,0.6)" font-size="9" letter-spacing="1.5" font-family="IBM Plex Mono, monospace">BATTER</text>';
+    html += '<text x="'+(VB_W/2)+'" y="'+(poppingYBottom-8)+'" text-anchor="middle" fill="rgba(244,241,232,0.6)" font-size="9" letter-spacing="1.5" font-family="IBM Plex Mono, monospace">BOWLER</text>';
+
+    if (drawDots){
+      if (viewMode==="heat"){
+        var heatGrid = [];
+        LENGTH_ZONES.forEach(function(lz){
+          LINE_ZONES.forEach(function(col, ci){
+            var count = balls.filter(function(b){return lengthZoneFor(b.yPct).id===lz.id && lineZoneIndex(b.xPct)===ci;}).length;
+            heatGrid.push({ ci:ci, count:count, lz:lz, colFrom:col.from, colTo:col.to });
+          });
+        });
+        var maxHeat = Math.max.apply(null, [1].concat(heatGrid.map(function(c){return c.count;})));
+        heatGrid.forEach(function(cell){
+          var y1=(cell.lz.from/PITCH_LENGTH_M)*VB_H, y2=(cell.lz.to/PITCH_LENGTH_M)*VB_H;
+          var t = cell.count/maxHeat;
+          html += '<rect x="'+cell.colFrom+'" y="'+y1+'" width="'+(cell.colTo-cell.colFrom)+'" height="'+(y2-y1)+'" fill="'+(cell.count?("rgba(255,107,82,"+(0.12+t*0.68)+")"):"transparent")+'" stroke="rgba(244,241,232,0.08)"/>';
+          if (cell.count>0) html += '<text x="'+((cell.colFrom+cell.colTo)/2)+'" y="'+((y1+y2)/2+4)+'" text-anchor="middle" font-size="12" font-family="IBM Plex Mono, monospace" fill="#f4f1e8" font-weight="600">'+cell.count+'</text>';
+        });
+      } else {
+        declutterPitch(balls).forEach(function(b){
+          if (b.outcome==="_none"){
+            html += '<circle cx="'+b.dx+'" cy="'+b.dy+'" r="5" fill="rgba(238,242,246,0.15)" stroke="#eef2f6" stroke-width="1.4"/>';
+            return;
+          }
+          var o = outcomeMap[b.outcome];
+          var big = o.id==="4"||o.id==="6"||o.id==="W";
+          html += '<circle cx="'+b.dx+'" cy="'+b.dy+'" r="'+(big?7:5.5)+'" fill="'+o.color+'" stroke="#0a1420" stroke-width="1.3" opacity="0.95"/>';
+          if (hasWagon(b)) html += '<circle cx="'+b.dx+'" cy="'+b.dy+'" r="'+((big?7:5.5)+2.5)+'" fill="none" stroke="'+o.color+'" stroke-width="1" opacity="0.5"/>';
+        });
+      }
+    }
+    return html;
+  }
+  function pitchSvgMarkup(viewMode, balls, pendingXY, svgId, standalone){
+    var html = standalone
+      ? '<svg xmlns="http://www.w3.org/2000/svg" width="'+VB_W_TOTAL+'" height="'+VB_H+'" viewBox="-'+RULER_W+' 0 '+VB_W_TOTAL+' '+VB_H+'">'
+      : '<svg id="'+svgId+'" viewBox="-'+RULER_W+' 0 '+VB_W_TOTAL+' '+VB_H+'" class="pm-pitch-svg">';
+    html += '<rect x="-'+RULER_W+'" y="0" width="'+VB_W_TOTAL+'" height="'+VB_H+'" fill="#1c4726"/>';
+    html += pitchCoreMarkup(viewMode, balls, true);
+    if (pendingXY) html += '<circle cx="'+((pendingXY.xPct/100)*VB_W)+'" cy="'+((pendingXY.yPct/100)*VB_H)+'" r="7" fill="none" stroke="#f4f1e8" stroke-width="1.5" stroke-dasharray="2 2"/>';
+    html += '</svg>';
+    return html;
+  }
+  function groundSvgMarkup(hand, balls, pendingShot, svgId, standalone, fielders, fielderOpacity, interactiveFielders){
+    var html = standalone
+      ? '<svg xmlns="http://www.w3.org/2000/svg" width="'+GW_SIZE+'" height="'+GW_SIZE+'" viewBox="0 0 '+GW_SIZE+' '+GW_SIZE+'">'
+      : '<svg id="'+svgId+'" viewBox="0 0 '+GW_SIZE+' '+GW_SIZE+'" class="pm-ground-svg" preserveAspectRatio="xMidYMid meet">';
+    html += '<circle cx="'+GW_CX+'" cy="'+GW_CY+'" r="'+GW_R+'" fill="#1c4726" stroke="#f4f1e8" stroke-width="2.5"/>';
+    html += '<circle cx="'+GW_CX+'" cy="'+GW_CY+'" r="'+GW_INNER_R+'" fill="none" stroke="rgba(238,242,246,0.4)" stroke-width="1.3" stroke-dasharray="4 4"/>';
+    html += '<text x="'+(GW_CX+GW_INNER_R+4)+'" y="'+(GW_CY-4)+'" font-size="7.5" fill="rgba(238,242,246,0.45)" font-family="IBM Plex Mono, monospace">30-YD</text>';
+    var offLabel = hand==="LHB" ? "OFF" : "LEG";
+    var legLabel = hand==="LHB" ? "LEG" : "OFF";
+    html += '<text x="'+(GW_CX+GW_R-8)+'" y="'+(BAT_Y+4)+'" text-anchor="end" font-size="10.5" font-weight="700" fill="rgba(238,242,246,0.6)" font-family="IBM Plex Mono, monospace">'+offLabel+'</text>';
+    html += '<text x="'+(GW_CX-GW_R+8)+'" y="'+(BAT_Y+4)+'" font-size="10.5" font-weight="700" fill="rgba(238,242,246,0.6)" font-family="IBM Plex Mono, monospace">'+legLabel+'</text>';
+    html += '<text x="'+GW_CX+'" y="'+(GW_CY+GW_R-10)+'" text-anchor="middle" font-size="9" fill="rgba(238,242,246,0.55)" font-family="IBM Plex Mono, monospace">STRAIGHT</text>';
+    html += '<text x="'+GW_CX+'" y="'+(GW_CY-GW_R+16)+'" text-anchor="middle" font-size="9" fill="rgba(238,242,246,0.55)" font-family="IBM Plex Mono, monospace">BEHIND (KEEPER)</text>';
+    var pTop = BAT_Y, pBottom = BAT_Y + MINI_PITCH_LEN;
+    html += '<rect x="'+(GW_CX-MINI_PITCH_W/2)+'" y="'+pTop+'" width="'+MINI_PITCH_W+'" height="'+MINI_PITCH_LEN+'" fill="rgba(244,241,232,0.12)" stroke="rgba(244,241,232,0.5)" stroke-width="1"/>';
+    html += '<rect x="'+(GW_CX-4)+'" y="'+(pBottom-3)+'" width="8" height="6" fill="#f2c14e" stroke="#3d2a12" stroke-width="0.8"/>';
+    balls.filter(hasWagon).forEach(function(b){
+      var o = outcomeMap[b.outcome];
+      var big = o.id==="4"||o.id==="6"||o.id==="W";
+      html += '<line x1="'+GW_CX+'" y1="'+BAT_Y+'" x2="'+b.wagonX+'" y2="'+b.wagonY+'" stroke="'+o.color+'" stroke-width="1" opacity="0.6"/>';
+      html += '<circle cx="'+b.wagonX+'" cy="'+b.wagonY+'" r="'+(big?6:4.6)+'" fill="'+o.color+'" stroke="#0a1420" stroke-width="1.1" opacity="0.95"/>';
+    });
+    if (pendingShot){
+      html += '<line x1="'+GW_CX+'" y1="'+BAT_Y+'" x2="'+pendingShot.x+'" y2="'+pendingShot.y+'" stroke="#f4f1e8" stroke-width="1.3" stroke-dasharray="3 3"/>';
+      html += '<circle cx="'+pendingShot.x+'" cy="'+pendingShot.y+'" r="6" fill="none" stroke="#f4f1e8" stroke-width="1.5"/>';
+    }
+    if (fielders && fielders.length){
+      var fo = fielderOpacity===undefined ? 1 : fielderOpacity;
+      fielders.forEach(function(f, i){
+        var idAttr = interactiveFielders ? ' id="field-marker-'+i+'"' : '';
+        html += '<circle'+idAttr+' cx="'+f.x+'" cy="'+f.y+'" r="5.5" fill="rgba(238,242,246,'+(0.85*fo)+')" stroke="#0a1420" stroke-width="1" opacity="'+fo+'"'+(interactiveFielders?' style="cursor:grab;"':'')+'/>';
+      });
+    }
+    html += '<circle cx="'+GW_CX+'" cy="'+BAT_Y+'" r="9" fill="#9b6bd6" stroke="#0a1420" stroke-width="1.5"/>';
+    html += '<text x="'+GW_CX+'" y="'+(BAT_Y+3.5)+'" text-anchor="middle" font-size="10" font-weight="700" fill="#04140d" font-family="Poppins, sans-serif">B</text>';
+    html += '</svg>';
+    return html;
+  }
+
+  // ---------- state: two independent rosters, one shared delivery log ----------
+  var FORMAT_PHASES = {
+    T20: ["Powerplay", "Middle", "Death"],
+    ODI: ["Powerplay", "Middle", "Death"],
+    Test: ["Session 1", "Session 2", "Session 3"],
+  };
+  var state = {
+    sessionDate: new Date().toISOString().slice(0,10),
+    bowlerRoster: {}, currentBowlerId: null,
+    batterRoster: {}, currentBatterId: null, nonStrikerBatterId: null,
+    deliveries: [], // the single source of truth — each stamped with both bowler and batter
+    viewFilter: "pair", // 'pair' | 'bowler' | 'batter' | 'all'
+    format: "T20", currentPhase: "Powerplay", phaseFilter: "all",
+    fieldPlacements: [], pendingField: [], loadedFieldId: null,
+    mode: "combined", // 'combined' | 'field'
+    idleView: "ground", // 'ground' | 'pitch' — what to show when no delivery is in progress
+    pendingDelivery: null, // stage: 'mark-pitch' -> 'awaiting-shot' -> 'shot-type' -> 'outcome' -> 'dismissal'
+    viewMode: "dots",
+    showBowlerEditor: false, editingBowlerId: null, bowlerDraft: null,
+    chase: null, // {targetRuns, targetOvers} — whole-session chase target
+    showChaseSetup: false,
+    conditions: { weather:"", pitch:"" },
+    showConditions: false,
+    showScenarioPicker: false, scenarioNameDraft: "",
+    showLoad: false,
+    status: "",
+    sessionKey: null, // stable key reused by auto-save + manual save so repeated saves update one record
+    showSetup: true, // collapsed once a bowler and batter are both picked; expand any time via "Change"
+    showMoreActions: false,
+  };
+  var globalBowlerDirectory = {};
+  var globalScenarios = []; // loaded from IndexedDB at boot
+  var app = document.getElementById("app");
+
+  function curBowler(){ return state.bowlerRoster[state.currentBowlerId] || null; }
+  function curBatter(){ return state.batterRoster[state.currentBatterId] || null; }
+  function nonStriker(){ return state.batterRoster[state.nonStrikerBatterId] || null; }
+  function sessionScore(){
+    var st = statsFor(state.deliveries);
+    var legit = st.legit.length;
+    return { runs: st.totalRuns, wickets: st.wickets, overs: Math.floor(legit/6), ballsIntoOver: legit%6 };
+  }
+  function maybeRotateStrike(runsThisBall, isLegit){
+    if (!state.nonStrikerBatterId) return; // only rotate when batting in a pair
+    var totalLegitNow = state.deliveries.filter(function(d){return d.outcome!=="wd"&&d.outcome!=="nb";}).length;
+    var oddRuns = isLegit && (runsThisBall%2===1);
+    var overCompleted = isLegit && totalLegitNow>0 && totalLegitNow%6===0;
+    var shouldSwap = oddRuns !== overCompleted; // XOR — matches real cricket end-swap logic
+    if (shouldSwap){
+      var tmp = state.currentBatterId;
+      state.currentBatterId = state.nonStrikerBatterId;
+      state.nonStrikerBatterId = tmp;
+    }
+  }
+  function latestFieldForBowler(bowlerId){
+    var matches = state.fieldPlacements.filter(function(f){return f.bowlerId===bowlerId;});
+    if (!matches.length) return null;
+    var phaseMatch = matches.filter(function(f){return f.phase===state.currentPhase;});
+    return phaseMatch.length ? phaseMatch[phaseMatch.length-1] : matches[matches.length-1];
+  }
+
+  // ---------- IndexedDB (shared "procoachos" database) ----------
+  function dbOpen(){
+    return new Promise(function(resolve, reject){
+      var req = indexedDB.open("procoachos", 4);
+      req.onupgradeneeded = function(e){
+        var db = e.target.result;
+        if (!db.objectStoreNames.contains("pitchsessions")) db.createObjectStore("pitchsessions", { keyPath:"key" });
+        if (!db.objectStoreNames.contains("battingsessions")) db.createObjectStore("battingsessions", { keyPath:"key" });
+        if (!db.objectStoreNames.contains("bowlerprofiles")) db.createObjectStore("bowlerprofiles", { keyPath:"key" });
+        if (!db.objectStoreNames.contains("livesessions")) db.createObjectStore("livesessions", { keyPath:"key" });
+        if (!db.objectStoreNames.contains("playerphotos")) db.createObjectStore("playerphotos", { keyPath:"key" });
+        if (!db.objectStoreNames.contains("scenarios")) db.createObjectStore("scenarios", { keyPath:"key" });
+      };
+      req.onsuccess = function(e){ resolve(e.target.result); };
+      req.onerror = function(){ reject(req.error); };
+    });
+  }
+  function dbGetAll(storeName){
+    return dbOpen().then(function(db){
+      return new Promise(function(resolve, reject){
+        var tx = db.transaction(storeName, "readonly");
+        var req = tx.objectStore(storeName).getAll();
+        req.onsuccess = function(){ resolve(req.result || []); };
+        req.onerror = function(){ reject(req.error); };
+      });
+    });
+  }
+  function dbPut(key, data, storeName){
+    return dbOpen().then(function(db){
+      return new Promise(function(resolve, reject){
+        var tx = db.transaction(storeName, "readwrite");
+        tx.objectStore(storeName).put({ key:key, data:data });
+        tx.oncomplete = function(){ resolve(); };
+        tx.onerror = function(){ reject(tx.error); };
+      });
+    });
+  }
+  function dbDelete(key, storeName){
+    return dbOpen().then(function(db){
+      return new Promise(function(resolve, reject){
+        var tx = db.transaction(storeName, "readwrite");
+        tx.objectStore(storeName).delete(key);
+        tx.oncomplete = function(){ resolve(); };
+        tx.onerror = function(){ reject(tx.error); };
+      });
+    });
+  }
+  var savedSessionsCache = [];
+  function refreshSavedSessions(){
+    return dbGetAll("livesessions").then(function(records){
+      records.sort(function(a,b){ return b.key.localeCompare(a.key); });
+      savedSessionsCache = records;
+      return records;
+    });
+  }
+  function autoSaveSession(){
+    if (!Object.keys(state.bowlerRoster).length && !Object.keys(state.batterRoster).length) return;
+    if (!state.deliveries.length) return;
+    if (!state.sessionKey) state.sessionKey = "livesession:"+state.sessionDate+":"+Date.now();
+    var payload = { date: state.sessionDate, bowlerRoster: state.bowlerRoster, batterRoster: state.batterRoster, deliveries: state.deliveries, fieldPlacements: state.fieldPlacements, format: state.format, conditions: state.conditions, savedAt: Date.now() };
+    dbPut(state.sessionKey, payload, "livesessions").catch(function(){});
+  }
+
+  // ---------- filtering the shared delivery log ----------
+  function visibleDeliveries(){
+    var out;
+    if (state.viewFilter==="bowler" && state.currentBowlerId) out = state.deliveries.filter(function(d){return d.bowlerId===state.currentBowlerId;});
+    else if (state.viewFilter==="batter" && state.currentBatterId) out = state.deliveries.filter(function(d){return d.batterId===state.currentBatterId;});
+    else if (state.viewFilter==="all") out = state.deliveries.slice();
+    else out = state.deliveries.filter(function(d){return d.bowlerId===state.currentBowlerId && d.batterId===state.currentBatterId;});
+    if (state.phaseFilter!=="all") out = out.filter(function(d){return d.phase===state.phaseFilter;});
+    return out;
+  }
+
+  function render(){
+    var bowlerIds = Object.keys(state.bowlerRoster);
+    var batterIds = Object.keys(state.batterRoster);
+    var bowler = curBowler(), batter = curBatter();
+    var hand = batter ? batter.hand : "RHB";
+    var visible = withOvers(visibleDeliveries());
+    var st = statsFor(visible);
+    var dismissals = visible.filter(function(d){return d.outcome==="W";});
+    var pd = state.pendingDelivery;
+
+    var html = "";
+    html += '<div class="pm-header"><div><div class="pm-subtitle">ProCoach OS &middot; Live Session</div><div class="pm-title">Bowler &harr; Batter</div></div>';
+    html += '<input class="pm-input pm-input-date" id="input-date" type="date" value="'+esc(state.sessionDate)+'"></div>';
+
+    var score = sessionScore();
+    html += '<div style="display:flex;align-items:baseline;justify-content:space-between;background:var(--card);border:1px solid var(--card-border);border-radius:14px;padding:10px 14px;margin-bottom:8px;">';
+    html += '<div><span style="font-family:\'Poppins\',sans-serif;font-weight:800;font-size:20px;color:var(--text);">'+score.runs+'/'+score.wickets+'</span><span style="font-family:\'IBM Plex Mono\',monospace;font-size:12px;color:var(--text-dim);margin-left:8px;">('+score.overs+'.'+score.ballsIntoOver+' ov)</span></div>';
+    if (state.nonStrikerBatterId && curBatter() && nonStriker()){
+      html += '<div style="font-size:11.5px;color:var(--text-dim);text-align:right;"><b style="color:var(--accent);">'+esc(curBatter().name)+'*</b> &amp; '+esc(nonStriker().name)+'</div>';
+    }
+    html += '</div>';
+
+    // auto-open setup until both a bowler and batter exist; otherwise stay collapsed unless the coach explicitly opened it
+    if (!bowler || !batter) state.showSetup = true;
+    var phases = FORMAT_PHASES[state.format];
+
+    if (!state.showSetup){
+      html += '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;background:var(--card);border:1px solid var(--card-border);border-radius:14px;padding:9px 13px;margin-bottom:8px;flex-wrap:wrap;">';
+      html += '<div style="font-size:12px;line-height:1.5;"><span style="color:var(--bowl);font-weight:700;">'+esc(bowler.name)+'</span> <span style="color:var(--text-dim);">('+bowlTypeLabel(bowler)+')</span> &rarr; <span style="color:var(--bat);font-weight:700;">'+esc(batter.name)+'</span> <span style="color:var(--text-dim);">('+hand+')</span> &middot; <span style="color:var(--text-dim);">'+esc(state.format)+' &middot; '+esc(state.currentPhase)+'</span></div>';
+      html += '<button class="pm-btn secondary small" data-action="toggle-setup">Change</button>';
+      html += '</div>';
+    } else {
+      html += '<div class="pm-panel" style="margin-top:0;">';
+      html += '<div class="pm-roster-block"><div class="pm-roster-title bowl">Bowling now</div><div class="pm-bowler-row">';
+      bowlerIds.forEach(function(id){
+        var bp = state.bowlerRoster[id];
+        html += '<button class="pm-tab '+(id===state.currentBowlerId?"active-bowl":"")+'" data-action="select-bowler" data-id="'+id+'">'+esc(bp.name)+'</button>';
+      });
+      html += '<button class="pm-tab add" data-action="open-bowler-editor" data-id="">+ Bowler</button>';
+      if (bowler) html += '<button class="pm-tab" data-action="open-bowler-editor" data-id="'+esc(state.currentBowlerId)+'">Edit</button>';
+      html += '</div></div>';
+
+      html += '<div class="pm-roster-block"><div class="pm-roster-title bat">Batting now</div><div class="pm-bowler-row">';
+      batterIds.forEach(function(id){
+        var btp = state.batterRoster[id];
+        html += '<button class="pm-tab '+(id===state.currentBatterId?"active-bat":"")+'" data-action="select-batter" data-id="'+id+'">'+esc(btp.name)+'</button>';
+      });
+      html += '<button class="pm-tab add" data-action="add-batter">+ Batter</button>';
+      if (batter) html += '<button class="pm-seg" style="display:inline-flex;margin-left:6px;"><button data-action="set-hand" data-hand="RHB" class="'+(hand==="RHB"?"active":"")+'" style="padding:6px 10px;">RHB</button><button data-action="set-hand" data-hand="LHB" class="'+(hand==="LHB"?"active":"")+'" style="padding:6px 10px;">LHB</button></button>';
+      html += '</div>';
+      if (batterIds.length>1){
+        html += '<div style="display:flex;align-items:center;gap:8px;margin-top:6px;flex-wrap:wrap;"><span style="font-size:11px;color:var(--text-dim);">Non-striker:</span>';
+        html += '<select class="pm-input" id="non-striker-select" style="width:auto;min-height:32px;padding:5px 8px;font-size:12px;">';
+        html += '<option value="">None (single batter)</option>';
+        batterIds.filter(function(id){return id!==state.currentBatterId;}).forEach(function(id){
+          html += '<option value="'+id+'" '+(state.nonStrikerBatterId===id?"selected":"")+'>'+esc(state.batterRoster[id].name)+'</option>';
+        });
+        html += '</select></div>';
+      }
+      html += '</div>';
+
+      html += '<div class="pm-roster-block"><div class="pm-roster-title" style="color:var(--text-dim);">Format &amp; phase — tagged on every delivery until changed</div><div class="pm-bowler-row">';
+      ["T20","ODI","Test"].forEach(function(f){ html += '<button class="pm-tab '+(state.format===f?"active":"")+'" data-action="set-format" data-format="'+f+'">'+f+'</button>'; });
+      html += '</div><div class="pm-bowler-row">';
+      phases.forEach(function(p){ html += '<button class="pm-tab '+(state.currentPhase===p?"active":"")+'" data-action="set-phase" data-phase="'+esc(p)+'">'+esc(p)+'</button>'; });
+      html += '</div></div>';
+
+      html += '<div class="pm-chip-row" style="padding-top:0;">';
+      html += '<button class="pm-chip" data-action="open-conditions">Conditions'+(state.conditions.weather||state.conditions.pitch?" &middot; set":"")+'</button>';
+      html += '<button class="pm-chip" data-action="open-scenario-picker">Scenario presets</button>';
+      html += '</div>';
+
+      if (bowler && batter) html += '<div class="pm-btn-row"><button class="pm-btn secondary" data-action="toggle-setup">Done — hide setup</button></div>';
+      html += '</div>';
+    }
+
+    html += '<div class="pm-chip-row" style="padding-top:0;">';
+    if (state.chase){
+      html += '<button class="pm-chip active" data-action="open-chase-setup">Chase active</button>';
+      html += '<button class="pm-chip" data-action="end-chase">End chase</button>';
+    } else {
+      html += '<button class="pm-chip" data-action="open-chase-setup">+ Target chase</button>';
+    }
+    html += '</div>';
+
+    if (state.chase){
+      var scNow = sessionScore();
+      var ballsRem = Math.max(0, state.chase.targetOvers*6 - (scNow.overs*6+scNow.ballsIntoOver));
+      var runsNeed = Math.max(0, state.chase.targetRuns - scNow.runs);
+      var rrr2 = ballsRem>0 ? (runsNeed/(ballsRem/6)) : (runsNeed>0?Infinity:0);
+      var done2 = runsNeed<=0, failed2 = !done2 && ballsRem<=0;
+      html += '<div class="pm-callout" style="'+(done2?"border-color:#4fb87a;background:rgba(79,184,122,0.12);":failed2?"border-color:var(--danger);background:rgba(255,107,82,0.12);":"")+'">';
+      if (done2) html += '<b>Chased it down!</b> '+scNow.runs+'/'+state.chase.targetRuns+' with '+ballsRem+' ball'+(ballsRem===1?"":"s")+' to spare.';
+      else if (failed2) html += '<b>Fell short.</b> Finished '+scNow.runs+'/'+state.chase.targetRuns+' — needed '+runsNeed+' more.';
+      else html += '<b>Chasing '+state.chase.targetRuns+'</b> off '+state.chase.targetOvers+' overs &middot; need '+runsNeed+' off '+ballsRem+' ball'+(ballsRem===1?"":"s")+' &middot; RRR '+(isFinite(rrr2)?rrr2.toFixed(1):"—");
+      html += '</div>';
+    }
+
+    html += '<div class="pm-mode-tabs">';
+    html += '<button class="pm-mode-tab '+(state.mode==="combined"?"active":"")+'" data-action="set-mode" data-mode="combined">Outcomes &amp; Wagon Wheel</button>';
+    html += '<button class="pm-mode-tab '+(state.mode==="field"?"active":"")+'" data-action="set-mode" data-mode="field">Field Placement</button>';
+    html += '</div>';
+
+    html += '<div class="pm-toolbar"><div style="display:flex;gap:8px;flex-wrap:wrap;">';
+    if (state.mode==="combined" && !pd){
+      html += '<div class="pm-seg"><button data-action="set-idleview" data-view="ground" class="'+(state.idleView==="ground"?"active":"")+'">Wagon wheel</button><button data-action="set-idleview" data-view="pitch" class="'+(state.idleView==="pitch"?"active":"")+'">Pitch map</button></div>';
+    }
+    if (state.mode==="combined" && !pd && state.idleView==="pitch"){
+      html += '<div class="pm-seg"><button data-action="set-view" data-view="dots" class="'+(state.viewMode==="dots"?"active":"")+'">Dots</button><button data-action="set-view" data-view="heat" class="'+(state.viewMode==="heat"?"active":"")+'">Heat grid</button></div>';
+    }
+    html += '</div><div class="pm-over-indicator">'+visible.length+' balls</div></div>';
+
+    var canStart = bowler && batter;
+
+    if (state.mode==="combined" && !pd && state.idleView==="pitch"){
+      html += '<div class="pm-pitch-wrap" id="pitch-wrap">'+pitchSvgMarkup(state.viewMode, visible, null, "pitch-svg", false);
+      if (visible.length===0) html += '<div class="pm-empty-hint">'+(canStart?'Tap "+ Mark new delivery" below to start logging':"Pick a bowler and a batter above first")+'</div>';
+      html += '<div class="pm-mark-btn-wrap"><button class="pm-btn" data-action="start-delivery" '+(canStart?"":"disabled")+'>+ Mark new delivery</button></div>';
+      html += '</div>';
+      html += '<div class="pm-legend-row">';
+      OUTCOMES.forEach(function(o){ html += '<span><span class="pm-legend-dot" style="background:'+o.color+'"></span>'+o.label+'</span>'; });
+      html += '</div>';
+    } else if (state.mode==="combined") {
+      html += '<div class="pm-pitch-wrap" id="combo-wrap">';
+      if (!canStart){
+        html += '<div class="pm-empty-hint" style="position:static;">Pick a bowler and a batter above to start logging deliveries.</div>';
+      } else if (pd && pd.stage==="mark-pitch"){
+        html += pitchSvgMarkup("dots", withOvers(state.deliveries.filter(function(d){return d.bowlerId===state.currentBowlerId && d.batterId===state.currentBatterId;})), null, "pitch-svg2", false);
+        html += '<div class="pm-corner-btn"><button class="pm-btn small secondary" data-action="cancel-delivery">Cancel</button></div>';
+      } else {
+        var pendingShotXY = (pd && pd.wagonX!==null) ? { x:pd.wagonX, y:pd.wagonY } : null;
+        var refField = curBowler() ? latestFieldForBowler(state.currentBowlerId) : null;
+        html += groundSvgMarkup(hand, visible, pendingShotXY, "ground-svg", false, refField?refField.positions:null, 0.4);
+        if (pd && pd.stage==="awaiting-shot"){
+          html += '<div class="pm-corner-btn"><button class="pm-btn small secondary" data-action="skip-shot">Skip &rarr;</button></div>';
+        } else if (!pd) {
+          html += '<div class="pm-mark-btn-wrap" style="display:flex;gap:8px;"><button class="pm-btn" data-action="start-delivery">+ Mark new delivery</button>';
+          if (visible.length>0) html += '<button class="pm-btn secondary" data-action="repeat-last-ball">&#8635; Repeat last</button>';
+          html += '</div>';
+        }
+        if (pd && pd.stage==="shot-type"){
+          var posS = popoverStyle(pd, 196, 190);
+          html += '<div class="pm-popover" style="left:'+posS.left+'px;top:'+posS.top+'px;grid-template-columns:repeat(2,1fr);width:186px;">';
+          SHOT_TYPES.forEach(function(s){ html += '<button class="pm-outcome-btn" style="background:#e0ab2c" data-action="commit-shottype" data-shottype="'+s+'">'+s+'</button>'; });
+          html += '<button class="pm-outcome-btn" style="background:var(--card);color:var(--text);border:1px solid var(--card-border);" data-action="skip-shottype">Skip</button>';
+          html += '</div>';
+        }
+        if (pd && pd.stage==="outcome"){
+          var pos2 = popoverStyle(pd, 196, 126);
+          html += '<div class="pm-popover" style="left:'+pos2.left+'px;top:'+pos2.top+'px;">';
+          OUTCOMES.forEach(function(o){ html += '<button class="pm-outcome-btn" style="background:'+o.color+'" data-action="commit-delivery" data-outcome="'+o.id+'">'+o.label+'</button>'; });
+          html += '</div>';
+        }
+        if (pd && pd.stage==="dismissal"){
+          var pos3 = popoverStyle(pd, 186, 168);
+          html += '<div class="pm-popover" style="left:'+pos3.left+'px;top:'+pos3.top+'px;grid-template-columns:repeat(2,1fr);width:170px;">';
+          DISMISSAL_TYPES.forEach(function(dt){ html += '<button class="pm-outcome-btn" style="background:#ff6b52" data-action="commit-dismissal" data-dismissal="'+dt+'">'+dt+'</button>'; });
+          html += '</div>';
+        }
+      }
+      html += '</div>';
+      html += '<div class="pm-legend-row">';
+      OUTCOMES.forEach(function(o){ if(o.id!=="wd"&&o.id!=="nb") html += '<span><span class="pm-legend-dot" style="background:'+o.color+'"></span>'+o.label+'</span>'; });
+      if (curBowler() && latestFieldForBowler(state.currentBowlerId)) html += '<span><span class="pm-legend-dot" style="background:rgba(238,242,246,0.85)"></span>Field set for '+esc(curBowler().name)+' (faint)</span>';
+      html += '</div>';
+    } else {
+      // ---------- field placement ----------
+      html += '<div style="background:var(--accent-dim);border:1px solid var(--accent);border-radius:12px;padding:8px 12px;margin-bottom:8px;font-size:12.5px;color:var(--text);"><b style="color:var(--accent);">Placing field for: '+esc(state.currentPhase)+'</b> — switch phase above before saving if this should be a different one.</div>';
+      html += '<div class="pm-pitch-wrap" id="field-wrap" style="aspect-ratio:1/1;height:auto;max-height:78vh;padding:4px;">'+groundSvgMarkup(hand, [], null, "field-svg", false, state.pendingField, 1, true);
+      html += '<div class="pm-corner-btn" style="display:flex;gap:6px;">';
+      html += '<button class="pm-btn small secondary" data-action="undo-field">Undo</button>';
+      html += '<button class="pm-btn small secondary" data-action="clear-field">Clear</button>';
+      html += '</div>';
+      if (state.pendingField.length===0) html += '<div class="pm-empty-hint">Tap to place fielders (up to 9) — bowler and keeper are implied</div>';
+      html += '</div>';
+      html += '<div class="pm-btn-row">';
+      html += '<button class="pm-btn" data-action="save-field" '+(!bowler||state.pendingField.length===0?"disabled":"")+'>Save as '+esc(state.currentPhase)+' field for '+(bowler?esc(bowler.name):"—")+'</button>';
+      html += '</div>';
+
+      var fieldsForBowler = state.fieldPlacements.filter(function(f){return f.bowlerId===state.currentBowlerId;});
+      html += '<div class="pm-panel"><div class="pm-panel-title">Saved fields '+(bowler?('<span class="dim">for '+esc(bowler.name)+'</span>'):'')+'</div>';
+      if (fieldsForBowler.length===0) html += '<div style="font-size:12px;color:var(--text-dim)">No field saved for this bowler yet.</div>';
+      html += '<div class="pm-ball-list">';
+      fieldsForBowler.forEach(function(f){
+        var isLoaded = state.loadedFieldId===f.id;
+        html += '<div class="pm-ball-row"><span class="pm-ball-tag">'+f.positions.length+' fielders &middot; '+esc(f.phase||"—")+' &middot; '+new Date(f.t).toLocaleTimeString()+(isLoaded?' <span style="color:var(--accent);">&middot; loaded</span>':'')+'</span><span style="display:flex;gap:6px;"><button class="pm-btn secondary small" data-action="load-field" data-id="'+f.id+'">Load</button><button class="pm-x-btn" data-action="delete-field" data-id="'+f.id+'">&times;</button></span></div>';
+      });
+      html += '</div></div>';
+    }
+
+    html += '<div class="pm-btn-row">';
+    html += '<button class="pm-btn" data-action="save">Save session</button>';
+    html += '<button class="pm-btn secondary" data-action="load-open">Load</button>';
+    html += '<button class="pm-btn secondary" data-action="toggle-more-actions">More &hellip;</button>';
+    html += '</div>';
+    if (state.showMoreActions){
+      html += '<div class="pm-btn-row">';
+      html += '<button class="pm-btn secondary" data-action="export">Export JSON</button>';
+      html += '<button class="pm-btn secondary" data-action="share-image">Share image</button>';
+      html += '<button class="pm-btn secondary" data-action="print-report">Print / PDF report</button>';
+      html += '<button class="pm-btn secondary" data-action="undo" '+(state.deliveries.length?"":"disabled")+'>Undo last</button>';
+      html += '<button class="pm-btn danger" data-action="clear" '+(state.deliveries.length?"":"disabled")+'>Clear all</button>';
+      html += '</div>';
+    }
+    if (state.status) html += '<div class="pm-status">'+esc(state.status)+'</div>';
+
+    html += '<div class="pm-chip-row">';
+    [["pair","This pairing"],["bowler","This bowler"],["batter","This batter"],["all","Whole session"]].forEach(function(f){
+      html += '<button class="pm-chip '+(state.viewFilter===f[0]?"active":"")+'" data-action="set-filter" data-filter="'+f[0]+'">'+f[1]+'</button>';
+    });
+    html += '</div>';
+    html += '<div class="pm-chip-row">';
+    html += '<button class="pm-chip '+(state.phaseFilter==="all"?"active":"")+'" data-action="set-phasefilter" data-phase="all">All phases</button>';
+    phases.forEach(function(p){ html += '<button class="pm-chip '+(state.phaseFilter===p?"active":"")+'" data-action="set-phasefilter" data-phase="'+esc(p)+'">'+esc(p)+'</button>'; });
+    html += '</div>';
+    html += '<div class="pm-panel"><div class="pm-panel-title">Summary <span class="dim">'+({pair:"this pairing",bowler:"this bowler",batter:"this batter",all:"whole session"})[state.viewFilter]+'</span></div>';
+    html += '<div class="pm-stat-grid">';
+    [["Total balls",visible.length],["Runs",st.totalRuns],["Economy",st.economy.toFixed(1)],["Strike rate",st.strikeRate.toFixed(0)],["Dismissals",st.dismissals],["Boundaries",st.boundaries]].forEach(function(s){
+      html += '<div class="pm-stat"><div class="pm-stat-val">'+s[1]+'</div><div class="pm-stat-label">'+s[0]+'</div></div>';
+    });
+    html += '</div><div class="pm-seam"></div><div class="pm-panel-title" style="font-size:12.5px">Length</div>';
+    html += outcomeColumnsTable(LENGTH_ZONES.map(function(z){ return { label:z.label, balls: visible.filter(function(b){return lengthZoneFor(b.yPct).id===z.id;}) }; }));
+    var lineLabels = hand==="LHB" ? LINE_LABELS_LHB : LINE_LABELS_RHB;
+    html += '<div class="pm-seam"></div><div class="pm-panel-title" style="font-size:12.5px">Line ('+(hand==="LHB"?"left-hand":"right-hand")+" batter's view)"+'</div>';
+    html += outcomeColumnsTable(lineLabels.map(function(label,i){ return { label:label, balls: visible.filter(function(b){return lineZoneIndex(b.xPct)===i;}) }; }));
+    html += '<div class="pm-seam"></div><div class="pm-panel-title" style="font-size:12.5px">Shot type</div>';
+    html += outcomeColumnsTable(SHOT_TYPES.map(function(s){ return { label:s, balls: visible.filter(function(b){return b.shotType===s;}) }; }).filter(function(r){return r.balls.length>0;}));
+    html += '<div class="pm-seam"></div><div class="pm-panel-title" style="font-size:12.5px">Bowling type faced</div>';
+    html += outcomeColumnsTable([
+      { label:"Right-arm pace", balls: visible.filter(function(b){return b.bowlArm==="RA" && b.bowlPace==="Pace";}) },
+      { label:"Left-arm pace", balls: visible.filter(function(b){return b.bowlArm==="LA" && b.bowlPace==="Pace";}) },
+      { label:"Right-arm off-spin", balls: visible.filter(function(b){return b.bowlArm==="RA" && b.bowlSpin==="Off-spin";}) },
+      { label:"Left-arm spin", balls: visible.filter(function(b){return b.bowlArm==="LA" && b.bowlSpin==="Off-spin";}) },
+      { label:"Right-arm leg-spin", balls: visible.filter(function(b){return b.bowlArm==="RA" && b.bowlSpin==="Leg-spin";}) },
+      { label:"Chinaman", balls: visible.filter(function(b){return b.bowlArm==="LA" && b.bowlSpin==="Leg-spin";}) },
+    ].filter(function(r){return r.balls.length>0;}));
+    html += '<div class="pm-seam"></div><div class="pm-panel-title" style="font-size:12.5px">By phase</div>';
+    html += outcomeColumnsTable(FORMAT_PHASES[state.format].map(function(p){ return { label:p, balls: visible.filter(function(b){return b.phase===p;}) }; }));
+    html += '</div>';
+
+    html += '<div class="pm-panel"><div class="pm-panel-title">Dismissals <span class="dim">'+dismissals.length+'</span></div>';
+    if (dismissals.length===0) html += '<div style="font-size:12px;color:var(--text-dim)">None yet.</div>';
+    html += '<div class="pm-ball-list">';
+    dismissals.forEach(function(d){
+      var lz = lengthZoneFor(d.yPct), ln = lineLabel(d.xPct, hand);
+      html += '<div class="pm-ball-row"><span class="pm-ball-tag"><span class="pm-ball-swatch" style="background:#ff6b52"></span>'+d.over+'.'+d.ballNo+' '+(d.dismissal||"Out")+' &mdash; '+esc(d.batterName)+' b '+esc(d.bowlerName)+' &middot; '+(d.shotType||"—")+', '+lz.label+' '+ln+'</span></div>';
+    });
+    html += '</div></div>';
+
+    html += '<div class="pm-panel"><div class="pm-panel-title">Delivery log</div>';
+    if (visible.length===0) html += '<div style="font-size:12px;color:var(--text-dim)">No deliveries logged yet.</div>';
+    html += '<div class="pm-ball-list">';
+    visible.forEach(function(d){
+      var o = outcomeMap[d.outcome], lz = lengthZoneFor(d.yPct), ln = lineLabel(d.xPct, hand);
+      var dismissTxt = (d.outcome==="W" && d.dismissal) ? (" ("+d.dismissal+")") : "";
+      var shotTxt = d.shotType ? (' &middot; '+d.shotType) : "";
+      html += '<div class="pm-ball-row"><span class="pm-ball-tag"><span class="pm-ball-swatch" style="background:'+o.color+'"></span>'+d.over+'.'+d.ballNo+' '+o.label+dismissTxt+' &mdash; '+esc(d.bowlerName)+' &rarr; '+esc(d.batterName)+' &middot; '+lz.label+', '+ln+shotTxt+(d.phase?(' &middot; '+esc(d.phase)):'')+'</span><button class="pm-x-btn" data-action="remove-delivery" data-id="'+d.id+'">&times;</button></div>';
+    });
+    html += '</div></div>';
+
+    if (state.showBowlerEditor && state.bowlerDraft){
+      var d2 = state.bowlerDraft;
+      html += '<div class="pm-modal-backdrop"><div class="pm-modal">';
+      html += '<div class="pm-panel-title">'+(state.editingBowlerId?"Edit bowler":"Add bowler")+'</div>';
+      html += '<div class="pm-bowler-editor-row"><div class="pm-label">Name</div><input class="pm-input" id="bowler-draft-name" placeholder="Bowler name" value="'+esc(d2.name)+'"></div>';
+      html += '<div class="pm-bowler-editor-row"><div class="pm-label">Arm</div><div class="pm-seg"><button data-action="draft-set-arm" data-val="RA" class="'+(d2.bowlArm==="RA"?"active":"")+'">Right-arm</button><button data-action="draft-set-arm" data-val="LA" class="'+(d2.bowlArm==="LA"?"active":"")+'">Left-arm</button></div></div>';
+      html += '<div class="pm-bowler-editor-row"><div class="pm-label">Type</div><div class="pm-seg"><button data-action="draft-set-pace" data-val="Pace" class="'+(d2.bowlPace==="Pace"?"active":"")+'">Pace</button><button data-action="draft-set-pace" data-val="Spin" class="'+(d2.bowlPace==="Spin"?"active":"")+'">Spin</button></div></div>';
+      if (d2.bowlPace==="Spin"){
+        html += '<div class="pm-bowler-editor-row"><div class="pm-label">Spin type</div><div class="pm-seg"><button data-action="draft-set-spin" data-val="Off-spin" class="'+(d2.bowlSpin==="Off-spin"?"active":"")+'">Off-spin</button><button data-action="draft-set-spin" data-val="Leg-spin" class="'+(d2.bowlSpin==="Leg-spin"?"active":"")+'">Leg-spin</button></div></div>';
+      }
+      html += '<div class="pm-bowler-editor-row"><div class="pm-label">Angle</div><div class="pm-seg"><button data-action="draft-set-side" data-val="Over" class="'+(d2.bowlSide==="Over"?"active":"")+'">Over the wkt</button><button data-action="draft-set-side" data-val="Around" class="'+(d2.bowlSide==="Around"?"active":"")+'">Around the wkt</button></div></div>';
+      html += '<div class="pm-btn-row"><button class="pm-btn" data-action="save-bowler-profile">Save</button><button class="pm-btn secondary" data-action="close-bowler-editor">Cancel</button>';
+      if (state.editingBowlerId) html += '<button class="pm-btn danger" data-action="delete-bowler-profile">Remove from roster</button>';
+      html += '</div></div></div>';
+    }
+
+    if (state.showChaseSetup){
+      html += '<div class="pm-modal-backdrop"><div class="pm-modal">';
+      html += '<div class="pm-panel-title">Target chase</div>';
+      html += '<div class="pm-bowler-editor-row"><div class="pm-label">Target runs</div><input class="pm-input" id="chase-runs" type="number" min="1" value="'+(state.chase?state.chase.targetRuns:20)+'"></div>';
+      html += '<div class="pm-bowler-editor-row"><div class="pm-label">Overs</div><input class="pm-input" id="chase-overs" type="number" min="1" value="'+(state.chase?state.chase.targetOvers:4)+'"></div>';
+      html += '<div class="pm-btn-row"><button class="pm-btn" data-action="start-chase">Start chase</button><button class="pm-btn secondary" data-action="close-chase-setup">Cancel</button></div>';
+      html += '</div></div>';
+    }
+
+    if (state.showConditions){
+      html += '<div class="pm-modal-backdrop"><div class="pm-modal">';
+      html += '<div class="pm-panel-title">Session conditions</div>';
+      html += '<div class="pm-bowler-editor-row"><div class="pm-label">Weather</div><div style="display:flex;gap:5px;flex-wrap:wrap;">';
+      ["Sunny","Overcast","Humid","Windy","Indoor"].forEach(function(w){ html += '<button class="pm-chip '+(state.conditions.weather===w?"active":"")+'" data-action="set-weather" data-val="'+w+'">'+w+'</button>'; });
+      html += '</div></div>';
+      html += '<div class="pm-bowler-editor-row"><div class="pm-label">Pitch / wicket type</div><div style="display:flex;gap:5px;flex-wrap:wrap;">';
+      ["Flat","Green","Dry/dusty","Wearing","Damp","Artificial"].forEach(function(p){ html += '<button class="pm-chip '+(state.conditions.pitch===p?"active":"")+'" data-action="set-pitchtype" data-val="'+p+'">'+p+'</button>'; });
+      html += '</div></div>';
+      html += '<div class="pm-btn-row"><button class="pm-btn secondary" data-action="close-conditions">Done</button></div>';
+      html += '</div></div>';
+    }
+
+    if (state.showScenarioPicker){
+      html += '<div class="pm-modal-backdrop"><div class="pm-modal">';
+      html += '<div class="pm-panel-title">Scenario presets</div>';
+      html += '<div style="font-size:12px;color:var(--text-dim);margin-bottom:10px;">Save the current format, phase and chase target as a reusable scenario, or load one you saved before.</div>';
+      if (globalScenarios.length===0) html += '<div style="font-size:12px;color:var(--text-dim);margin-bottom:10px;">No saved scenarios yet.</div>';
+      globalScenarios.forEach(function(sc){
+        html += '<div class="pm-load-row"><span>'+esc(sc.name)+' <span class="dim">&middot; '+esc(sc.format)+' &middot; '+esc(sc.phase)+(sc.targetRuns?(' &middot; chase '+sc.targetRuns+'/'+sc.targetOvers):'')+'</span></span><span style="display:flex;gap:6px;"><button class="pm-btn secondary" style="padding:8px 12px" data-action="load-scenario" data-id="'+sc.id+'">Load</button><button class="pm-x-btn" data-action="delete-scenario" data-id="'+sc.id+'">&#128465;</button></span></div>';
+      });
+      html += '<div class="pm-seam"></div>';
+      html += '<div class="pm-bowler-editor-row"><div class="pm-label">Save current setup as</div><input class="pm-input" id="scenario-name-input" placeholder="e.g. Death overs pressure" value="'+esc(state.scenarioNameDraft)+'"></div>';
+      html += '<div class="pm-btn-row"><button class="pm-btn" data-action="save-scenario">Save current setup</button><button class="pm-btn secondary" data-action="close-scenario-picker">Close</button></div>';
+      html += '</div></div>';
+    }
+
+    if (state.showLoad){
+      var keys = savedSessionsCache;
+      html += '<div class="pm-modal-backdrop"><div class="pm-modal"><div class="pm-panel-title">Saved sessions</div><div class="pm-load-list">';
+      if (keys.length===0) html += '<div style="font-size:12px;color:var(--text-dim)">Nothing saved yet.</div>';
+      keys.forEach(function(rec){
+        var d3 = rec.data || {};
+        html += '<div class="pm-load-row"><span>'+esc(d3.date||"")+' &middot; '+(d3.deliveries||[]).length+' balls</span><span style="display:flex;gap:6px;"><button class="pm-btn secondary" style="padding:8px 12px" data-action="load-session" data-key="'+esc(rec.key)+'">Load</button><button class="pm-x-btn" data-action="delete-session" data-key="'+esc(rec.key)+'">&#128465;</button></span></div>';
+      });
+      html += '</div><div style="margin-top:12px;text-align:right"><button class="pm-btn secondary" data-action="load-close">Close</button></div></div></div>';
+    }
+
+    app.innerHTML = html;
+
+    var dateInput = document.getElementById("input-date");
+    dateInput.addEventListener("input", function(){ state.sessionDate = dateInput.value; state.sessionKey = null; });
+
+    var nonStrikerSelect = document.getElementById("non-striker-select");
+    if (nonStrikerSelect){
+      nonStrikerSelect.addEventListener("change", function(){
+        state.nonStrikerBatterId = nonStrikerSelect.value || null;
+        render();
+      });
+    }
+
+    var bowlerDraftName = document.getElementById("bowler-draft-name");
+    if (bowlerDraftName){
+      bowlerDraftName.addEventListener("input", function(){
+        state.bowlerDraft.name = bowlerDraftName.value;
+        var remembered = globalBowlerDirectory[keyName(bowlerDraftName.value)];
+        if (remembered && !state.editingBowlerId){
+          state.bowlerDraft.bowlArm = remembered.bowlArm;
+          state.bowlerDraft.bowlPace = remembered.bowlPace;
+          state.bowlerDraft.bowlSpin = remembered.bowlSpin || "Off-spin";
+          state.bowlerDraft.bowlSide = remembered.bowlSide;
+          state.status = "Remembered "+remembered.name+"'s bowling type.";
+          render();
+          var reInput = document.getElementById("bowler-draft-name");
+          if (reInput){ reInput.focus(); reInput.setSelectionRange(reInput.value.length, reInput.value.length); }
+          setTimeout(function(){ state.status=""; }, 2500);
+        }
+      });
+      attachPlayerAutocomplete(["bowler-draft-name"]);
+    }
+
+    if (canStart && pd && pd.stage==="mark-pitch"){
+      var svg2 = document.getElementById("pitch-svg2");
+      svg2.addEventListener("click", function(e){
+        var svgRect = svg2.getBoundingClientRect();
+        var svgUnitX = ((e.clientX-svgRect.left)/svgRect.width)*VB_W_TOTAL - RULER_W;
+        if (svgUnitX < 0) return;
+        var xPct = clamp((svgUnitX/VB_W)*100, 0, 100);
+        var yPct = clamp(((e.clientY-svgRect.top)/svgRect.height)*100, 0, 100);
+        state.pendingDelivery.xPct = xPct; state.pendingDelivery.yPct = yPct;
+        state.pendingDelivery.stage = "awaiting-shot";
+        render();
+      });
+    } else if (canStart && pd && pd.stage==="awaiting-shot"){
+      var gsvg = document.getElementById("ground-svg");
+      gsvg.addEventListener("click", function(e){
+        var wrap = document.getElementById("combo-wrap");
+        var svgRect = gsvg.getBoundingClientRect();
+        var wrapRect = wrap.getBoundingClientRect();
+        var gx = ((e.clientX-svgRect.left)/svgRect.width)*GW_SIZE;
+        var gy = ((e.clientY-svgRect.top)/svgRect.height)*GW_SIZE;
+        var dx = gx-GW_CX, dy = gy-GW_CY;
+        var dist = Math.sqrt(dx*dx+dy*dy);
+        if (dist > GW_R){ var k = GW_R/dist; gx = GW_CX+dx*k; gy = GW_CY+dy*k; }
+        state.pendingDelivery.wagonX = gx; state.pendingDelivery.wagonY = gy;
+        state.pendingDelivery.stage = state.pendingDelivery.repeatingContext ? "outcome" : "shot-type";
+        state.pendingDelivery.px = e.clientX-wrapRect.left; state.pendingDelivery.py = e.clientY-wrapRect.top;
+        state.pendingDelivery.wrapW = wrapRect.width; state.pendingDelivery.wrapH = wrapRect.height;
+        render();
+      });
+    } else if (state.mode==="field"){
+      var fsvg = document.getElementById("field-svg");
+      if (fsvg){
+        fsvg.style.touchAction = "none";
+        var dragIndex = -1, dragMoved = false;
+        function fieldPoint(e){
+          var svgRect = fsvg.getBoundingClientRect();
+          var fx = ((e.clientX-svgRect.left)/svgRect.width)*GW_SIZE;
+          var fy = ((e.clientY-svgRect.top)/svgRect.height)*GW_SIZE;
+          var dx = fx-GW_CX, dy = fy-GW_CY;
+          var dist = Math.sqrt(dx*dx+dy*dy);
+          if (dist > GW_R){ var k = GW_R/dist; fx = GW_CX+dx*k; fy = GW_CY+dy*k; }
+          return { x:fx, y:fy };
+        }
+        fsvg.addEventListener("pointerdown", function(e){
+          var p = fieldPoint(e);
+          var nearest = -1, nearestDist = 17;
+          state.pendingField.forEach(function(f, idx){
+            var d = Math.sqrt((f.x-p.x)*(f.x-p.x) + (f.y-p.y)*(f.y-p.y));
+            if (d < nearestDist){ nearestDist = d; nearest = idx; }
+          });
+          dragMoved = false;
+          if (nearest>=0){
+            dragIndex = nearest;
+            fsvg.setPointerCapture(e.pointerId);
+          } else if (state.pendingField.length < 9){
+            state.pendingField.push({ x:p.x, y:p.y });
+            dragIndex = state.pendingField.length-1;
+            state.loadedFieldId = null;
+            fsvg.setPointerCapture(e.pointerId);
+            render();
+          }
+        });
+        fsvg.addEventListener("pointermove", function(e){
+          if (dragIndex < 0) return;
+          dragMoved = true;
+          state.loadedFieldId = null;
+          var p = fieldPoint(e);
+          state.pendingField[dragIndex].x = p.x;
+          state.pendingField[dragIndex].y = p.y;
+          var marker = document.getElementById("field-marker-"+dragIndex);
+          if (marker){ marker.setAttribute("cx", p.x); marker.setAttribute("cy", p.y); }
+        });
+        function endDrag(e){
+          if (dragIndex >= 0){
+            try { fsvg.releasePointerCapture(e.pointerId); } catch(err){}
+            dragIndex = -1;
+            if (dragMoved) render();
+          }
+        }
+        fsvg.addEventListener("pointerup", endDrag);
+        fsvg.addEventListener("pointercancel", endDrag);
+      }
+    }
+  }
+
+  function commitFullDelivery(pd, outcomeId, dismissalType){
+    var bowler = curBowler(), batter = curBatter();
+    state.deliveries.push({
+      id: uid(), xPct:pd.xPct, yPct:pd.yPct, wagonX:pd.wagonX, wagonY:pd.wagonY, shotType:pd.shotType, outcome:outcomeId, dismissal:dismissalType||null,
+      bowlerId: state.currentBowlerId, bowlerName: bowler?bowler.name:"Unknown", bowlArm: bowler?bowler.bowlArm:"RA", bowlPace: bowler?bowler.bowlPace:"Pace", bowlSpin: bowler?bowler.bowlSpin:null, bowlSide: bowler?bowler.bowlSide:"Over",
+      batterId: state.currentBatterId, batterName: batter?batter.name:"Unknown", batterHand: batter?batter.hand:"RHB",
+      format: state.format, phase: state.currentPhase,
+      t: Date.now()
+    });
+    var isLegit = outcomeId!=="wd" && outcomeId!=="nb";
+    maybeRotateStrike(outcomeMap[outcomeId].runs, isLegit);
+  }
+
+  app.addEventListener("click", function(e){
+    if (e.target.classList && e.target.classList.contains("pm-modal-backdrop")){
+      state.showLoad = false; state.showBowlerEditor = false; render(); return;
+    }
+    var el = e.target.closest("[data-action]");
+    if (!el) return;
+    var action = el.getAttribute("data-action");
+
+    if (action==="select-bowler"){ state.currentBowlerId = el.getAttribute("data-id"); render(); }
+    else if (action==="select-batter"){ state.currentBatterId = el.getAttribute("data-id"); render(); }
+    else if (action==="add-batter"){
+      var name = window.prompt("Batter name? (add several at once separated by commas)", "");
+      if (name===null) return;
+      var names = name.split(",").map(function(n){return n.trim();}).filter(function(n){return n;});
+      if (names.length===0) return;
+      var lastId = null;
+      names.forEach(function(n){ var id = uid(); state.batterRoster[id] = { name:n, hand:"RHB" }; lastId = id; });
+      state.currentBatterId = lastId; render();
+    }
+    else if (action==="set-hand"){ if (curBatter()) curBatter().hand = el.getAttribute("data-hand"); render(); }
+    else if (action==="open-bowler-editor"){
+      var editId = el.getAttribute("data-id") || null;
+      state.editingBowlerId = editId;
+      if (editId && state.bowlerRoster[editId]){
+        var existing = state.bowlerRoster[editId];
+        state.bowlerDraft = { name:existing.name, bowlArm:existing.bowlArm, bowlPace:existing.bowlPace, bowlSpin:existing.bowlSpin||"Off-spin", bowlSide:existing.bowlSide };
+      } else {
+        state.bowlerDraft = { name:"", bowlArm:"RA", bowlPace:"Pace", bowlSpin:"Off-spin", bowlSide:"Over" };
+      }
+      state.showBowlerEditor = true; render();
+    }
+    else if (action==="close-bowler-editor"){ state.showBowlerEditor = false; state.bowlerDraft = null; render(); }
+    else if (action==="open-chase-setup"){ state.showChaseSetup = true; render(); }
+    else if (action==="close-chase-setup"){ state.showChaseSetup = false; render(); }
+    else if (action==="start-chase"){
+      var runsInput = document.getElementById("chase-runs"), oversInput = document.getElementById("chase-overs");
+      var targetRuns = parseInt(runsInput ? runsInput.value : 20, 10) || 20;
+      var targetOvers = parseInt(oversInput ? oversInput.value : 4, 10) || 4;
+      state.chase = { targetRuns:targetRuns, targetOvers:targetOvers };
+      state.showChaseSetup = false; render();
+    }
+    else if (action==="end-chase"){ state.chase = null; render(); }
+    else if (action==="open-conditions"){ state.showConditions = true; render(); }
+    else if (action==="close-conditions"){ state.showConditions = false; render(); }
+    else if (action==="set-weather"){ var wv = el.getAttribute("data-val"); state.conditions.weather = state.conditions.weather===wv?"":wv; render(); }
+    else if (action==="set-pitchtype"){ var pv = el.getAttribute("data-val"); state.conditions.pitch = state.conditions.pitch===pv?"":pv; render(); }
+    else if (action==="open-scenario-picker"){ state.showScenarioPicker = true; render(); }
+    else if (action==="close-scenario-picker"){ state.showScenarioPicker = false; render(); }
+    else if (action==="save-scenario"){
+      var nameEl = document.getElementById("scenario-name-input");
+      var scName = (nameEl ? nameEl.value : "").trim();
+      if (!scName){ state.status = "Give this scenario a name first."; render(); setTimeout(function(){ state.status=""; render(); }, 2000); return; }
+      var scenario = { id:uid(), name:scName, format:state.format, phase:state.currentPhase, targetRuns: state.chase?state.chase.targetRuns:null, targetOvers: state.chase?state.chase.targetOvers:null };
+      globalScenarios.push(scenario);
+      dbPut(scenario.id, scenario, "scenarios").catch(function(){});
+      state.scenarioNameDraft = "";
+      state.status = "Scenario saved.";
+      render(); setTimeout(function(){ state.status=""; render(); }, 2000);
+    }
+    else if (action==="load-scenario"){
+      var sc = globalScenarios.find(function(s){return s.id===el.getAttribute("data-id");});
+      if (sc){
+        state.format = sc.format;
+        state.currentPhase = FORMAT_PHASES[sc.format].indexOf(sc.phase)>=0 ? sc.phase : FORMAT_PHASES[sc.format][0];
+        state.chase = sc.targetRuns ? { targetRuns:sc.targetRuns, targetOvers:sc.targetOvers } : null;
+        state.showScenarioPicker = false;
+        state.status = "Loaded scenario: "+sc.name;
+        render(); setTimeout(function(){ state.status=""; render(); }, 2500);
+      }
+    }
+    else if (action==="delete-scenario"){
+      var delScId = el.getAttribute("data-id");
+      globalScenarios = globalScenarios.filter(function(s){return s.id!==delScId;});
+      dbDelete(delScId, "scenarios").catch(function(){});
+      render();
+    }
+    else if (action==="draft-set-arm"){ state.bowlerDraft.bowlArm = el.getAttribute("data-val"); render(); }
+    else if (action==="draft-set-pace"){ state.bowlerDraft.bowlPace = el.getAttribute("data-val"); render(); }
+    else if (action==="draft-set-spin"){ state.bowlerDraft.bowlSpin = el.getAttribute("data-val"); render(); }
+    else if (action==="draft-set-side"){ state.bowlerDraft.bowlSide = el.getAttribute("data-val"); render(); }
+    else if (action==="save-bowler-profile"){
+      var draft = state.bowlerDraft;
+      if (!draft.name || !draft.name.trim()){ state.status = "Give this bowler a name first."; render(); setTimeout(function(){ state.status=""; render(); }, 2000); return; }
+      var id = state.editingBowlerId || uid();
+      state.bowlerRoster[id] = { name: draft.name.trim(), bowlArm: draft.bowlArm, bowlPace: draft.bowlPace, bowlSpin: draft.bowlPace==="Spin" ? draft.bowlSpin : null, bowlSide: draft.bowlSide };
+      state.currentBowlerId = id;
+      var dirKey = keyName(draft.name);
+      globalBowlerDirectory[dirKey] = state.bowlerRoster[id];
+      dbPut(dirKey, state.bowlerRoster[id], "bowlerprofiles").catch(function(){});
+      state.showBowlerEditor = false; state.bowlerDraft = null; state.editingBowlerId = null;
+      render();
+    }
+    else if (action==="delete-bowler-profile"){
+      var delId = state.editingBowlerId;
+      if (delId && confirm("Remove this bowler from today's roster?")){
+        delete state.bowlerRoster[delId];
+        if (state.currentBowlerId===delId) state.currentBowlerId = Object.keys(state.bowlerRoster)[0] || null;
+        state.showBowlerEditor = false; state.bowlerDraft = null; state.editingBowlerId = null;
+        render();
+      }
+    }
+    else if (action==="set-mode"){
+      if (state.pendingDelivery){ state.status = "Cancelled the delivery in progress."; state.pendingDelivery = null; setTimeout(function(){ state.status=""; render(); }, 2000); }
+      state.mode = el.getAttribute("data-mode"); render();
+    }
+    else if (action==="toggle-setup"){ state.showSetup = !state.showSetup; render(); }
+    else if (action==="toggle-more-actions"){ state.showMoreActions = !state.showMoreActions; render(); }
+    else if (action==="set-view"){ state.viewMode = el.getAttribute("data-view"); render(); }
+    else if (action==="set-idleview"){ state.idleView = el.getAttribute("data-view"); render(); }
+    else if (action==="set-filter"){ state.viewFilter = el.getAttribute("data-filter"); render(); }
+    else if (action==="set-phasefilter"){ state.phaseFilter = el.getAttribute("data-phase"); render(); }
+    else if (action==="set-format"){
+      state.format = el.getAttribute("data-format");
+      var validPhases = FORMAT_PHASES[state.format];
+      if (validPhases.indexOf(state.currentPhase)===-1) state.currentPhase = validPhases[0];
+      if (state.phaseFilter!=="all" && validPhases.indexOf(state.phaseFilter)===-1) state.phaseFilter = "all";
+      render();
+    }
+    else if (action==="set-phase"){ state.currentPhase = el.getAttribute("data-phase"); render(); }
+    else if (action==="undo-field"){ state.pendingField = state.pendingField.slice(0,-1); state.loadedFieldId = null; render(); }
+    else if (action==="clear-field"){ state.pendingField = []; state.loadedFieldId = null; render(); }
+    else if (action==="load-field"){
+      var loadId = el.getAttribute("data-id");
+      var field = state.fieldPlacements.find(function(f){return f.id===loadId;});
+      if (field){
+        state.pendingField = field.positions.map(function(p){return {x:p.x, y:p.y};});
+        state.loadedFieldId = field.id;
+        state.status = "Loaded the "+(field.phase||"saved")+" field for viewing — note the phase selector still shows "+state.currentPhase+". Switch it before saving if you want to update the "+(field.phase||"same")+" field, or add a new one.";
+        render(); setTimeout(function(){ state.status=""; render(); }, 4000);
+      }
+    }
+    else if (action==="save-field"){
+      if (!curBowler() || state.pendingField.length===0) return;
+      state.fieldPlacements.push({ id:uid(), bowlerId:state.currentBowlerId, bowlerName:curBowler().name, positions:state.pendingField.slice(), phase:state.currentPhase, t:Date.now() });
+      state.pendingField = [];
+      state.loadedFieldId = null;
+      state.status = "Field saved for "+curBowler().name+".";
+      render(); setTimeout(function(){ state.status=""; render(); }, 2000);
+    }
+    else if (action==="delete-field"){ var fid = el.getAttribute("data-id"); state.fieldPlacements = state.fieldPlacements.filter(function(f){return f.id!==fid;}); if (state.loadedFieldId===fid) state.loadedFieldId = null; render(); }
+    else if (action==="start-delivery"){
+      if (!curBowler() || !curBatter()){ state.status = "Pick a bowler and a batter first."; render(); setTimeout(function(){ state.status=""; render(); }, 2000); return; }
+      state.pendingDelivery = { xPct:null, yPct:null, wagonX:null, wagonY:null, shotType:null, dismissal:null, stage:"mark-pitch" }; render();
+    }
+    else if (action==="repeat-last-ball"){
+      if (!curBowler() || !curBatter()){ state.status = "Pick a bowler and a batter first."; render(); setTimeout(function(){ state.status=""; render(); }, 2000); return; }
+      var pairBalls = state.deliveries.filter(function(d){return d.bowlerId===state.currentBowlerId && d.batterId===state.currentBatterId;});
+      var lastBall = pairBalls[pairBalls.length-1];
+      state.pendingDelivery = { xPct:null, yPct:null, wagonX:null, wagonY:null, shotType:lastBall?lastBall.shotType:null, dismissal:null, stage:"mark-pitch", repeatingContext:true };
+      render();
+    }
+    else if (action==="cancel-delivery"){ state.pendingDelivery = null; render(); }
+    else if (action==="skip-shot"){
+      if (state.pendingDelivery && state.pendingDelivery.stage==="awaiting-shot"){
+        var wrapEl = document.getElementById("combo-wrap");
+        var r = wrapEl.getBoundingClientRect();
+        state.pendingDelivery.stage = "outcome";
+        state.pendingDelivery.px = r.width/2 - 98; state.pendingDelivery.py = r.height/2 - 63;
+        state.pendingDelivery.wrapW = r.width; state.pendingDelivery.wrapH = r.height;
+        render();
+      }
+    }
+    else if (action==="skip-shottype"){
+      var pdSk = state.pendingDelivery;
+      if (pdSk && pdSk.stage==="shot-type"){ pdSk.shotType = null; pdSk.stage = "outcome"; render(); }
+    }
+    else if (action==="commit-shottype"){
+      var pdS = state.pendingDelivery;
+      if (pdS && pdS.stage==="shot-type"){ pdS.shotType = el.getAttribute("data-shottype"); pdS.stage = "outcome"; render(); }
+    }
+    else if (action==="commit-delivery"){
+      var pd = state.pendingDelivery;
+      if (pd && pd.stage==="outcome"){
+        var outcomeId = el.getAttribute("data-outcome");
+        if (outcomeId==="W"){ pd.outcome = "W"; pd.stage = "dismissal"; render(); }
+        else { commitFullDelivery(pd, outcomeId, null); state.pendingDelivery = null; autoSaveSession(); render(); }
+      }
+    }
+    else if (action==="commit-dismissal"){
+      var pd2 = state.pendingDelivery;
+      if (pd2 && pd2.stage==="dismissal"){ commitFullDelivery(pd2, "W", el.getAttribute("data-dismissal")); state.pendingDelivery = null; autoSaveSession(); render(); }
+    }
+    else if (action==="remove-delivery"){ var id = el.getAttribute("data-id"); state.deliveries = state.deliveries.filter(function(d){return d.id!==id;}); render(); }
+    else if (action==="undo"){ state.deliveries = state.deliveries.slice(0,-1); render(); }
+    else if (action==="clear"){ if (state.deliveries.length && confirm("Clear the ENTIRE session log (all bowlers and batters)?")){ state.deliveries = []; render(); } }
+    else if (action==="save"){
+      if (!Object.keys(state.bowlerRoster).length && !Object.keys(state.batterRoster).length){ state.status = "Add at least one bowler or batter before saving."; render(); setTimeout(function(){ state.status=""; render(); }, 2500); return; }
+      if (!state.sessionKey) state.sessionKey = "livesession:"+state.sessionDate+":"+Date.now();
+      var payload = { date: state.sessionDate, bowlerRoster: state.bowlerRoster, batterRoster: state.batterRoster, deliveries: state.deliveries, fieldPlacements: state.fieldPlacements, format: state.format, conditions: state.conditions, savedAt: Date.now() };
+      state.status = "Saving…"; render();
+      dbPut(state.sessionKey, payload, "livesessions").then(function(){
+        state.status = "Session saved."; render(); setTimeout(function(){ state.status=""; render(); }, 2500);
+      }).catch(function(){
+        state.status = "Couldn't save — try again."; render(); setTimeout(function(){ state.status=""; render(); }, 2500);
+      });
+    }
+    else if (action==="load-open"){ state.showLoad = true; render(); refreshSavedSessions().then(function(){ render(); }); }
+    else if (action==="load-close"){ state.showLoad = false; render(); }
+    else if (action==="load-session"){
+      var key = el.getAttribute("data-key");
+      var rec = savedSessionsCache.find(function(r){ return r.key===key; });
+      try {
+        var data = rec ? rec.data : null;
+        if (!data) throw new Error("not found");
+        state.sessionDate = data.date || state.sessionDate;
+        state.bowlerRoster = data.bowlerRoster || {};
+        state.batterRoster = data.batterRoster || {};
+        state.deliveries = data.deliveries || [];
+        state.fieldPlacements = data.fieldPlacements || [];
+        state.format = data.format || "T20";
+        state.conditions = data.conditions || { weather:"", pitch:"" };
+        state.currentPhase = FORMAT_PHASES[state.format][0];
+        state.phaseFilter = "all"; state.pendingField = []; state.loadedFieldId = null;
+        state.currentBowlerId = Object.keys(state.bowlerRoster)[0] || null;
+        state.currentBatterId = Object.keys(state.batterRoster)[0] || null;
+        state.nonStrikerBatterId = null; state.chase = null;
+        state.sessionKey = key;
+        state.showSetup = false; state.showMoreActions = false;
+        state.pendingDelivery = null; state.mode = "combined"; state.idleView = "ground"; state.viewFilter = "pair";
+        state.showLoad = false;
+      } catch(err){ state.status = "Couldn't load that session."; }
+      render();
+    }
+    else if (action==="delete-session"){
+      var delKey = el.getAttribute("data-key");
+      dbDelete(delKey, "livesessions").then(function(){ return refreshSavedSessions(); }).then(function(){ render(); });
+    }
+    else if (action==="export"){
+      var payload = { date: state.sessionDate, bowlerRoster: state.bowlerRoster, batterRoster: state.batterRoster, deliveries: state.deliveries, fieldPlacements: state.fieldPlacements, format: state.format, exportedAt: new Date().toISOString() };
+      var blob = new Blob([JSON.stringify(payload, null, 2)], { type:"application/json" });
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement("a");
+      a.href = url; a.download = "livesession-"+state.sessionDate+".json";
+      document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+    }
+    else if (action==="share-image"){ shareCurrentChart(); }
+    else if (action==="print-report"){ printReport(); }
+  });
+
+  function loadSvgAsImage(svgString){
+    return new Promise(function(resolve, reject){
+      var blob = new Blob([svgString], { type: "image/svg+xml;charset=utf-8" });
+      var url = URL.createObjectURL(blob);
+      var img = new Image();
+      img.onload = function(){ resolve({ img:img, url:url }); };
+      img.onerror = function(err){ reject(err); };
+      img.src = url;
+    });
+  }
+  function shareBlob(blob, fname){
+    var file;
+    try { file = new File([blob], fname, { type: "image/png" }); } catch (e) { file = null; }
+    if (file && navigator.canShare && navigator.canShare({ files: [file] })) {
+      navigator.share({ files: [file], title: "Live Session", text: fname }).catch(function(){});
+    } else {
+      var dlUrl = URL.createObjectURL(blob);
+      var a = document.createElement("a");
+      a.href = dlUrl; a.download = fname;
+      document.body.appendChild(a); a.click(); a.remove();
+      URL.revokeObjectURL(dlUrl);
+    }
+  }
+  function shareCurrentChart(){
+    var visible = visibleDeliveries();
+    var isCombined = !(state.mode==="combined" && state.idleView==="pitch" && !state.pendingDelivery);
+    var hand = curBatter() ? curBatter().hand : "RHB";
+    var svgString = isCombined ? groundSvgMarkup(hand, visible, null, null, true) : pitchSvgMarkup(state.viewMode, visible, null, null, true);
+    var chartW = isCombined ? GW_SIZE : VB_W_TOTAL;
+    var chartH = isCombined ? GW_SIZE : VB_H;
+    loadSvgAsImage(svgString).then(function(res){
+      var scale = 2.5, padTop = 96, padSide = 20, padBottom = 24;
+      var canvas = document.createElement("canvas");
+      canvas.width = (chartW + padSide*2) * scale; canvas.height = (chartH + padTop + padBottom) * scale;
+      var ctx = canvas.getContext("2d");
+      ctx.fillStyle = "#0a1420"; ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.scale(scale, scale);
+      ctx.fillStyle = "#9b6bd6"; ctx.font = "700 19px Poppins, sans-serif";
+      var bn = curBowler()?curBowler().name:"—", btn = curBatter()?curBatter().name:"—";
+      ctx.fillText(bn+" vs "+btn, padSide, 30);
+      ctx.fillStyle = "#8b96a5"; ctx.font = "500 11.5px Inter, sans-serif";
+      ctx.fillText(state.sessionDate + "  ·  ProCoach OS Live Session", padSide, 48);
+      var st = statsFor(visible);
+      ctx.fillStyle = "#eef2f6"; ctx.font = "600 12.5px Inter, sans-serif";
+      ctx.fillText(visible.length + " balls  ·  " + st.totalRuns + " runs  ·  econ " + st.economy.toFixed(1) + "  ·  " + st.dismissals + " out", padSide, 70);
+      ctx.drawImage(res.img, padSide, padTop, chartW, chartH);
+      URL.revokeObjectURL(res.url);
+      canvas.toBlob(function(blob){ shareBlob(blob, "livesession-"+state.sessionDate+".png"); }, "image/png");
+    }).catch(function(){ state.status = "Couldn't generate image."; render(); setTimeout(function(){ state.status=""; render(); }, 2500); });
+  }
+  function printReport(){
+    var bowlerIds = Object.keys(state.bowlerRoster);
+    var batterIds = Object.keys(state.batterRoster);
+    var container = document.getElementById("print-report");
+    var html = "";
+    var scoreP = sessionScore();
+    var condBits = [state.conditions.weather, state.conditions.pitch].filter(Boolean).join(", ");
+    html += '<div class="pr-player"><div class="pr-title">Live Session Summary</div><div class="pr-sub">'+esc(state.sessionDate)+(condBits?(' &middot; '+esc(condBits)):'')+' &middot; ProCoach OS</div>';
+    html += '<div class="pr-stats"><div class="pr-stat"><b>'+scoreP.runs+'/'+scoreP.wickets+'</b>Score</div><div class="pr-stat"><b>'+scoreP.overs+'.'+scoreP.ballsIntoOver+'</b>Overs</div><div class="pr-stat"><b>'+state.deliveries.length+'</b>Total balls</div></div>';
+    if (state.chase) html += '<div style="font-size:11px;color:#555;margin-top:6px;">Chase target: '+state.chase.targetRuns+' off '+state.chase.targetOvers+' overs</div>';
+    html += '</div>';
+    bowlerIds.forEach(function(id){
+      var b = state.bowlerRoster[id];
+      var balls = state.deliveries.filter(function(d){return d.bowlerId===id;});
+      var st = statsFor(balls);
+      html += '<div class="pr-player"><div class="pr-title">'+esc(b.name)+' — Bowling</div><div class="pr-sub">'+esc(state.sessionDate)+' &middot; '+bowlTypeLabel(b)+' &middot; ProCoach OS Live Session</div>';
+      html += '<div class="pr-stats">';
+      [["Total balls",balls.length],["Runs",st.totalRuns],["Economy",st.economy.toFixed(1)],["Strike rate",st.strikeRate.toFixed(0)],["Dismissals",st.dismissals],["Boundaries",st.boundaries]].forEach(function(s){ html += '<div class="pr-stat"><b>'+s[1]+'</b>'+s[0]+'</div>'; });
+      html += '</div>';
+      var bowlHandCounts = {}; balls.forEach(function(d){ bowlHandCounts[d.batterHand] = (bowlHandCounts[d.batterHand]||0)+1; });
+      var bowlChartHand = (bowlHandCounts.LHB||0) > (bowlHandCounts.RHB||0) ? "LHB" : "RHB";
+      var bowlPitchSvg = pitchSvgMarkup("dots", balls, null, null, true);
+      var bowlGroundSvg = groundSvgMarkup(bowlChartHand, balls, null, null, true);
+      html += '<div class="pr-charts">'+bowlPitchSvg+bowlGroundSvg+'</div>';
+      html += '<div class="pr-section-title">Length</div>';
+      html += printOutcomeColumnsTable(LENGTH_ZONES.map(function(z){ return { label:z.label, balls: balls.filter(function(d){return lengthZoneFor(d.yPct).id===z.id;}) }; }));
+      var bowlLineLabels = bowlChartHand==="LHB" ? LINE_LABELS_LHB : LINE_LABELS_RHB;
+      html += '<div class="pr-section-title">Line</div>';
+      html += printOutcomeColumnsTable(bowlLineLabels.map(function(label,i){ return { label:label, balls: balls.filter(function(d){return lineZoneIndex(d.xPct)===i;}) }; }));
+      html += '<div class="pr-section-title">By phase</div>';
+      html += printOutcomeColumnsTable(FORMAT_PHASES[state.format].map(function(p){ return { label:p, balls: balls.filter(function(d){return d.phase===p;}) }; }));
+      html += '<table class="pr-table"><tr><th>Ball</th><th>vs</th><th>Outcome</th><th>Length</th><th>Line</th><th>Phase</th></tr>';
+      withOvers(balls).forEach(function(d){
+        var o = outcomeMap[d.outcome], lz = lengthZoneFor(d.yPct), ln = lineLabel(d.xPct, d.batterHand);
+        var ot = o.label + (d.outcome==="W"&&d.dismissal?" ("+d.dismissal+")":"");
+        html += '<tr><td>'+d.over+'.'+d.ballNo+'</td><td>'+esc(d.batterName)+'</td><td>'+esc(ot)+'</td><td>'+lz.label+'</td><td>'+ln+'</td><td>'+esc(d.phase||"—")+'</td></tr>';
+      });
+      html += '</table></div>';
+    });
+    batterIds.forEach(function(id){
+      var b = state.batterRoster[id];
+      var balls = state.deliveries.filter(function(d){return d.batterId===id;});
+      var st = statsFor(balls);
+      html += '<div class="pr-player"><div class="pr-title">'+esc(b.name)+' — Batting</div><div class="pr-sub">'+esc(state.sessionDate)+' &middot; '+b.hand+' &middot; ProCoach OS Live Session</div>';
+      html += '<div class="pr-stats">';
+      [["Total balls",balls.length],["Runs",st.totalRuns],["Economy",st.economy.toFixed(1)],["Strike rate",st.strikeRate.toFixed(0)],["Dismissals",st.dismissals],["Boundaries",st.boundaries]].forEach(function(s){ html += '<div class="pr-stat"><b>'+s[1]+'</b>'+s[0]+'</div>'; });
+      html += '</div>';
+      var batPitchSvg = pitchSvgMarkup("dots", balls, null, null, true);
+      var batGroundSvg = groundSvgMarkup(b.hand, balls, null, null, true);
+      html += '<div class="pr-charts">'+batPitchSvg+batGroundSvg+'</div>';
+      html += '<div class="pr-section-title">Length faced</div>';
+      html += printOutcomeColumnsTable(LENGTH_ZONES.map(function(z){ return { label:z.label, balls: balls.filter(function(d){return lengthZoneFor(d.yPct).id===z.id;}) }; }));
+      var batLineLabels = b.hand==="LHB" ? LINE_LABELS_LHB : LINE_LABELS_RHB;
+      html += '<div class="pr-section-title">Line faced</div>';
+      html += printOutcomeColumnsTable(batLineLabels.map(function(label,i){ return { label:label, balls: balls.filter(function(d){return lineZoneIndex(d.xPct)===i;}) }; }));
+      html += '<div class="pr-section-title">Shot type</div>';
+      html += printOutcomeColumnsTable(SHOT_TYPES.map(function(s){ return { label:s, balls: balls.filter(function(d){return d.shotType===s;}) }; }).filter(function(r){return r.balls.length>0;}));
+      html += '<div class="pr-section-title">Bowling type faced</div>';
+      html += printOutcomeColumnsTable([
+        { label:"Right-arm pace", balls: balls.filter(function(d){return d.bowlArm==="RA" && d.bowlPace==="Pace";}) },
+        { label:"Left-arm pace", balls: balls.filter(function(d){return d.bowlArm==="LA" && d.bowlPace==="Pace";}) },
+        { label:"Right-arm off-spin", balls: balls.filter(function(d){return d.bowlArm==="RA" && d.bowlSpin==="Off-spin";}) },
+        { label:"Left-arm spin", balls: balls.filter(function(d){return d.bowlArm==="LA" && d.bowlSpin==="Off-spin";}) },
+        { label:"Right-arm leg-spin", balls: balls.filter(function(d){return d.bowlArm==="RA" && d.bowlSpin==="Leg-spin";}) },
+        { label:"Chinaman", balls: balls.filter(function(d){return d.bowlArm==="LA" && d.bowlSpin==="Leg-spin";}) },
+      ].filter(function(r){return r.balls.length>0;}));
+      html += '<div class="pr-section-title">By phase</div>';
+      html += printOutcomeColumnsTable(FORMAT_PHASES[state.format].map(function(p){ return { label:p, balls: balls.filter(function(d){return d.phase===p;}) }; }));
+      html += '<table class="pr-table"><tr><th>Ball</th><th>Bowler</th><th>Outcome</th><th>Shot</th><th>Length</th><th>Line</th><th>Phase</th></tr>';
+      withOvers(balls).forEach(function(d){
+        var o = outcomeMap[d.outcome], lz = lengthZoneFor(d.yPct), ln = lineLabel(d.xPct, b.hand);
+        var ot = o.label + (d.outcome==="W"&&d.dismissal?" ("+d.dismissal+")":"");
+        html += '<tr><td>'+d.over+'.'+d.ballNo+'</td><td>'+esc(d.bowlerName)+'</td><td>'+esc(ot)+'</td><td>'+esc(d.shotType||"—")+'</td><td>'+lz.label+'</td><td>'+ln+'</td><td>'+esc(d.phase||"—")+'</td></tr>';
+      });
+      html += '</table></div>';
+    });
+    container.innerHTML = html;
+    setTimeout(function(){ window.print(); }, 60);
+  }
+
+  render();
+  dbGetAll("bowlerprofiles").then(function(records){
+    records.forEach(function(r){ globalBowlerDirectory[r.key] = r.data; });
+  }).catch(function(){});
+  dbGetAll("scenarios").then(function(records){
+    globalScenarios = records.map(function(r){ return r.data; });
+    if (state.showScenarioPicker) render();
+  }).catch(function(){});
+  initPlayerAutocomplete(["bowler-draft-name"]);
+})();
+</script>
+</body>
+</html>

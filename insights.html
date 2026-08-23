@@ -1,0 +1,634 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Insights">
+<meta name="theme-color" content="#0a1420">
+<title>ProCoach OS — Insights</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@600;700;800&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; height: 100%; background: #0a1420; }
+  #app {
+    --bg:#0a1420; --card:#111d30; --card-border:rgba(255,255,255,0.07);
+    --accent:#22c58b; --accent2:#e0ab2c; --accent-dim:rgba(34,197,139,0.16);
+    --text:#eef2f6; --text-dim:#8b96a5; --danger:#ff6b52;
+    font-family:'Inter',sans-serif; background:var(--bg); color:var(--text);
+    min-height:100%; padding:10px;
+    padding-top: max(14px, env(safe-area-inset-top));
+    padding-bottom: max(14px, env(safe-area-inset-bottom));
+  }
+  .pm-header{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:10px;}
+  .pm-title{font-size:19px;font-weight:800;color:var(--accent);letter-spacing:-0.01em;font-family:'Poppins',sans-serif;}
+  .pm-subtitle{font-size:10px;text-transform:uppercase;letter-spacing:.12em;color:var(--text-dim);font-weight:600;}
+
+  .pm-mode-tabs{display:flex;gap:6px;margin-bottom:12px;overflow-x:auto;-webkit-overflow-scrolling:touch;}
+  .pm-mode-tab{flex-shrink:0;text-align:center;background:var(--card);border:1px solid var(--card-border);color:var(--text-dim);border-radius:12px;padding:9px 12px;font-family:'Poppins',sans-serif;font-weight:700;font-size:12px;cursor:pointer;white-space:nowrap;}
+  .pm-mode-tab.active{background:var(--accent);color:#04140d;border-color:var(--accent);}
+
+  .pm-input, select.pm-input{background:var(--card);border:1px solid var(--card-border);border-radius:10px;padding:10px 12px;font-family:'Inter',sans-serif;font-size:13.5px;color:var(--text);min-height:40px;width:100%;}
+  .pm-input:focus{outline:2px solid var(--accent);outline-offset:1px;}
+  .pm-row{display:flex;gap:10px;margin-bottom:10px;flex-wrap:wrap;}
+  .pm-row > *{flex:1;min-width:140px;}
+  .pm-label{font-size:10.5px;text-transform:uppercase;letter-spacing:.08em;color:var(--text-dim);font-weight:700;margin-bottom:5px;}
+
+  .pm-panel{background:var(--card);border:1px solid var(--card-border);border-radius:18px;padding:14px 16px;margin-top:12px;}
+  .pm-panel-title{font-family:'Poppins',sans-serif;font-weight:700;font-size:14.5px;color:var(--text);margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;}
+  .pm-panel-title .dim{color:var(--text-dim);font-weight:500;font-size:11.5px;}
+  .pm-seam{border:none;height:1px;background:var(--card-border);margin:12px 0;}
+
+  .pm-stat-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;}
+  .pm-stat{background:rgba(255,255,255,0.03);border:1px solid var(--card-border);border-radius:12px;padding:10px 8px;text-align:center;}
+  .pm-stat-val{font-family:'Poppins',sans-serif;font-size:18px;font-weight:800;color:var(--accent);}
+  .pm-stat-label{font-size:9px;text-transform:uppercase;letter-spacing:.05em;color:var(--text-dim);margin-top:2px;}
+
+  .pm-zone-row{display:flex;align-items:center;gap:8px;margin-bottom:6px;font-size:11.5px;}
+  .pm-zone-label{width:112px;flex-shrink:0;color:var(--text-dim);font-size:11px;}
+  .pm-zone-bar-track{flex:1;height:7px;background:rgba(255,255,255,0.06);border-radius:4px;overflow:hidden;}
+  .pm-zone-bar-fill{height:100%;border-radius:4px;}
+  .pm-zone-count{width:34px;text-align:right;font-family:'IBM Plex Mono',monospace;color:var(--text);font-size:11px;}
+
+  .pm-two-col{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+  @media (max-width:480px){ .pm-two-col{grid-template-columns:1fr;} }
+
+  .pm-insight-card{display:flex;gap:10px;align-items:flex-start;padding:10px 0;border-bottom:1px solid var(--card-border);}
+  .pm-insight-card:last-child{border-bottom:none;}
+  .pm-insight-dot{width:8px;height:8px;border-radius:50%;background:var(--accent);flex-shrink:0;margin-top:5px;}
+  .pm-insight-text{font-size:13px;line-height:1.5;color:var(--text);}
+  .pm-insight-note{font-size:11px;color:var(--text-dim);margin-top:2px;}
+
+  .pm-callout{background:var(--accent-dim);border:1px solid var(--accent);border-radius:14px;padding:12px 14px;font-size:12.5px;line-height:1.5;color:var(--text);margin-bottom:6px;}
+  .pm-callout b{color:var(--accent);}
+
+  .pm-btn{display:inline-flex;align-items:center;gap:6px;background:var(--accent);color:#04140d;border:none;border-radius:999px;padding:10px 15px;font-family:'Inter',sans-serif;font-size:12.5px;font-weight:700;cursor:pointer;min-height:40px;}
+  .pm-btn.secondary{background:var(--card);color:var(--text);border:1px solid var(--card-border);}
+  .pm-btn-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;}
+
+  .pm-player-card{background:rgba(255,255,255,0.03);border:1px solid var(--card-border);border-radius:14px;padding:12px 14px;margin-bottom:10px;}
+  .pm-player-name{font-family:'Poppins',sans-serif;font-weight:700;font-size:14px;color:var(--text);}
+  .pm-player-role{font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--accent);font-weight:700;margin-left:6px;}
+  .pm-player-stats{font-size:11.5px;color:var(--text-dim);margin-top:4px;font-family:'IBM Plex Mono',monospace;}
+
+  .pm-empty{font-size:12.5px;color:var(--text-dim);padding:16px 4px;text-align:center;}
+
+  #print-report{display:none;}
+  @media print {
+    body * { visibility: hidden; }
+    #print-report, #print-report * { visibility: visible; }
+    #print-report{ display:block; position:absolute; left:0; top:0; width:100%; background:#fff; color:#141414; font-family:Arial,Helvetica,sans-serif; }
+    .pr-player{ padding:16px 22px; page-break-after:always; }
+    .pr-player:last-child{ page-break-after:auto; }
+    .pr-head{ display:flex; justify-content:space-between; align-items:baseline; border-bottom:2px solid #173d20; padding-bottom:8px; margin-bottom:10px; }
+    .pr-head h1{ font-size:17px; margin:0; color:#173d20; }
+    .pr-head .pr-role{ font-size:10px; text-transform:uppercase; color:#7a5c10; font-weight:700; }
+    .pr-meta{ font-size:11px; color:#555; }
+    .pr-stats{ display:flex; gap:8px; flex-wrap:wrap; margin-bottom:10px; }
+    .pr-stat{ border:1px solid #ccc; border-radius:6px; padding:5px 9px; font-size:10.5px; text-align:center; min-width:58px; }
+    .pr-stat b{ display:block; font-size:14px; color:#173d20; }
+    .pr-title{ font-size:20px; font-weight:800; color:#173d20; margin-bottom:2px; }
+    .pr-sub{ font-size:11px; color:#555; margin-bottom:14px; }
+  }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="print-report"></div>
+<script>
+(function(){
+  var OUTCOMES = [
+    { id:"dot", label:"Dot", runs:0, color:"#7d93a3" },
+    { id:"1", label:"1 run", runs:1, color:"#4fb87a" },
+    { id:"2", label:"2 runs", runs:2, color:"#2ec4c4" },
+    { id:"3", label:"3 runs", runs:3, color:"#c9793d" },
+    { id:"4", label:"FOUR", runs:4, color:"#3d8bd6" },
+    { id:"6", label:"SIX", runs:6, color:"#e0ab2c" },
+    { id:"W", label:"Wicket", runs:0, color:"#ff6b52" },
+    { id:"wd", label:"Wide", runs:1, color:"#b98ce0" },
+    { id:"nb", label:"No ball", runs:1, color:"#b98ce0" },
+  ];
+  var outcomeMap = {}; OUTCOMES.forEach(function(o){ outcomeMap[o.id] = o; });
+  outcomeMap["_none"] = { id:"_none", label:"Pitched (no outcome)", runs:0, color:"#eef2f6" };
+
+  var PITCH_LENGTH_M = 20.12;
+  var LENGTH_ZONES = [
+    { id:"yorker", label:"Yorker", from:0, to:1 },
+    { id:"full", label:"Full", from:1, to:3 },
+    { id:"good", label:"Good length", from:3, to:6 },
+    { id:"short", label:"Short", from:6, to:9 },
+    { id:"bouncer", label:"Bouncer", from:9, to:PITCH_LENGTH_M },
+  ];
+  var VB_W = 200;
+  var LINE_ZONES = [
+    { from:0,   to:58  },{ from:58,  to:79  },{ from:79,  to:93  },
+    { from:93,  to:107 },{ from:107, to:121 },{ from:121, to:142 },{ from:142, to:200 },
+  ];
+  var LINE_LABELS_RHB = ["Outside off","Just outside off","Off","Middle","Leg","Just outside leg","Outside leg"];
+  var LINE_LABELS_LHB = ["Outside leg","Just outside leg","Leg","Middle","Off","Just outside off","Outside off"];
+
+  function lengthZoneFor(yPct){
+    var d = (yPct/100)*PITCH_LENGTH_M;
+    for (var i=0;i<LENGTH_ZONES.length;i++){ var z=LENGTH_ZONES[i]; if (d>=z.from && d<z.to) return z; }
+    return LENGTH_ZONES[LENGTH_ZONES.length-1];
+  }
+  function lineZoneIndex(xPct){
+    var x = (xPct/100)*VB_W;
+    for (var i=0;i<LINE_ZONES.length;i++){ if (x>=LINE_ZONES[i].from && x<LINE_ZONES[i].to) return i; }
+    return LINE_ZONES.length-1;
+  }
+  function lineLabelArr(hand){ return hand==="LHB" ? LINE_LABELS_LHB : LINE_LABELS_RHB; }
+  function esc(s){ return String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;"); }
+  function clamp(n,lo,hi){ return Math.max(lo, Math.min(hi, n)); }
+  function keyName(n){ return (n||"").trim().toLowerCase(); }
+
+  // ---------- IndexedDB (shared "procoachos" database — reads what pitchmap/battingmap write) ----------
+  function dbOpen(){
+    return new Promise(function(resolve, reject){
+      var req = indexedDB.open("procoachos", 4);
+      req.onupgradeneeded = function(e){
+        var db = e.target.result;
+        if (!db.objectStoreNames.contains("pitchsessions")) db.createObjectStore("pitchsessions", { keyPath:"key" });
+        if (!db.objectStoreNames.contains("battingsessions")) db.createObjectStore("battingsessions", { keyPath:"key" });
+        if (!db.objectStoreNames.contains("bowlerprofiles")) db.createObjectStore("bowlerprofiles", { keyPath:"key" });
+        if (!db.objectStoreNames.contains("livesessions")) db.createObjectStore("livesessions", { keyPath:"key" });
+        if (!db.objectStoreNames.contains("playerphotos")) db.createObjectStore("playerphotos", { keyPath:"key" });
+        if (!db.objectStoreNames.contains("scenarios")) db.createObjectStore("scenarios", { keyPath:"key" });
+      };
+      req.onsuccess = function(e){ resolve(e.target.result); };
+      req.onerror = function(){ reject(req.error); };
+    });
+  }
+  function dbGetAll(storeName){
+    return dbOpen().then(function(db){
+      return new Promise(function(resolve, reject){
+        var tx = db.transaction(storeName, "readonly");
+        var req = tx.objectStore(storeName).getAll();
+        req.onsuccess = function(){ resolve(req.result || []); };
+        req.onerror = function(){ reject(req.error); };
+      });
+    });
+  }
+  function dbPut(storeName, key, data){
+    return dbOpen().then(function(db){
+      return new Promise(function(resolve, reject){
+        var tx = db.transaction(storeName, "readwrite");
+        tx.objectStore(storeName).put({ key:key, data:data });
+        tx.oncomplete = function(){ resolve(); };
+        tx.onerror = function(){ reject(tx.error); };
+      });
+    });
+  }
+  function migrateLegacyLocalStorage(prefix, storeName){
+    var oldKeys = [];
+    for (var i=0;i<localStorage.length;i++){
+      var k = localStorage.key(i);
+      if (k && k.indexOf(prefix)===0) oldKeys.push(k);
+    }
+    if (!oldKeys.length) return Promise.resolve();
+    return Promise.all(oldKeys.map(function(k){
+      try {
+        var data = JSON.parse(localStorage.getItem(k));
+        return dbPut(storeName, k, data).then(function(){ localStorage.removeItem(k); });
+      } catch(e){ return Promise.resolve(); }
+    }));
+  }
+
+  // ---------- aggregate everything already saved by pitchmap.html / battingmap.html ----------
+  function aggregate(sessions, groupField){
+    var map = {};
+    sessions.forEach(function(sess){
+      var group = sess[groupField] || {};
+      Object.keys(group).forEach(function(pid){
+        var p = group[pid];
+        if (!p || !p.balls || !p.balls.length) return;
+        var key = keyName(p.name);
+        if (!key) return;
+        if (!map[key]) map[key] = { name:p.name, entries:[] };
+        map[key].entries.push({ date:sess.date, hand:p.hand, bowlArm:p.bowlArm, bowlPace:p.bowlPace, bowlSide:p.bowlSide, balls:p.balls });
+      });
+    });
+    return map;
+  }
+  function mostCommon(vals){
+    var counts = {};
+    vals.forEach(function(v){ if (v) counts[v] = (counts[v]||0)+1; });
+    var best = null, bestN = 0;
+    Object.keys(counts).forEach(function(k){ if (counts[k]>bestN){ best=k; bestN=counts[k]; } });
+    return best;
+  }
+  function foldLiveSessionsIntoAggregates(liveSessions, bowlersMap, battersMap){
+    liveSessions.forEach(function(sess){
+      var byBowler = {}, byBatter = {};
+      (sess.deliveries||[]).forEach(function(d){
+        var bk = keyName(d.bowlerName);
+        if (bk) (byBowler[bk] = byBowler[bk] || []).push(d);
+        var tk = keyName(d.batterName);
+        if (tk) (byBatter[tk] = byBatter[tk] || []).push(d);
+      });
+      Object.keys(byBowler).forEach(function(bk){
+        var balls = byBowler[bk];
+        if (!bowlersMap[bk]) bowlersMap[bk] = { name: balls[0].bowlerName, entries:[] };
+        bowlersMap[bk].entries.push({
+          date: sess.date, hand: mostCommon(balls.map(function(b){return b.batterHand;})) || "RHB",
+          bowlArm: balls[0].bowlArm, bowlPace: balls[0].bowlPace, bowlSide: balls[0].bowlSide, balls: balls
+        });
+      });
+      Object.keys(byBatter).forEach(function(tk){
+        var balls = byBatter[tk];
+        if (!battersMap[tk]) battersMap[tk] = { name: balls[0].batterName, entries:[] };
+        battersMap[tk].entries.push({ date: sess.date, hand: balls[0].batterHand, balls: balls });
+      });
+    });
+  }
+  var bowlSessions = [], batSessions = [], liveSessions = [], bowlers = {}, batters = {}, dataReady = false;
+
+  function allBalls(entry){ var out=[]; entry.entries.forEach(function(e){ out = out.concat(e.balls); }); return out; }
+  function lastHand(entry){ return entry.entries.length ? entry.entries[entry.entries.length-1].hand : "RHB"; }
+  function statsFor(balls){
+    var legit = balls.filter(function(b){return b.outcome!=="wd" && b.outcome!=="nb";});
+    var totalRuns = balls.reduce(function(s,b){return s+outcomeMap[b.outcome].runs;},0);
+    var wickets = balls.filter(function(b){return b.outcome==="W";}).length;
+    var dots = balls.filter(function(b){return b.outcome==="dot";}).length;
+    var boundaries = balls.filter(function(b){return b.outcome==="4"||b.outcome==="6";}).length;
+    var economy = legit.length ? (totalRuns/legit.length)*6 : 0;
+    var strikeRate = legit.length ? (totalRuns/legit.length)*100 : 0;
+    var dotPct = legit.length ? (dots/legit.length)*100 : 0;
+    return { legit:legit, totalRuns:totalRuns, wickets:wickets, dismissals:wickets, dots:dots, boundaries:boundaries, economy:economy, strikeRate:strikeRate, dotPct:dotPct };
+  }
+  function lengthBreakdown(balls){
+    return LENGTH_ZONES.map(function(z){
+      var zBalls = balls.filter(function(b){return lengthZoneFor(b.yPct).id===z.id;});
+      var legit = zBalls.filter(function(b){return b.outcome!=="wd"&&b.outcome!=="nb";});
+      var runs = zBalls.reduce(function(s,b){return s+outcomeMap[b.outcome].runs;},0);
+      var wkts = zBalls.filter(function(b){return b.outcome==="W";}).length;
+      return { id:z.id, label:z.label, balls:zBalls.length, runs:runs, wickets:wkts, rate: legit.length?(runs/legit.length)*6:null };
+    });
+  }
+  function lineBreakdown(balls, hand){
+    var labels = lineLabelArr(hand);
+    return labels.map(function(label,i){
+      var zBalls = balls.filter(function(b){return lineZoneIndex(b.xPct)===i;});
+      var legit = zBalls.filter(function(b){return b.outcome!=="wd"&&b.outcome!=="nb";});
+      var runs = zBalls.reduce(function(s,b){return s+outcomeMap[b.outcome].runs;},0);
+      var wkts = zBalls.filter(function(b){return b.outcome==="W";}).length;
+      return { label:label, balls:zBalls.length, runs:runs, wickets:wkts, rate: legit.length?(runs/legit.length)*6:null };
+    });
+  }
+
+  function barPanel(title, rows, colorVar){
+    var max = Math.max.apply(null, [1].concat(rows.map(function(r){return r.balls;})));
+    var html = '<div class="pm-panel-title" style="font-size:12.5px">'+title+'</div>';
+    rows.forEach(function(r){
+      html += '<div class="pm-zone-row"><div class="pm-zone-label">'+esc(r.label)+'</div><div class="pm-zone-bar-track"><div class="pm-zone-bar-fill" style="width:'+((r.balls/max)*100)+'%;background:'+colorVar+'"></div></div><div class="pm-zone-count">'+r.balls+'</div></div>';
+    });
+    return html;
+  }
+
+  // ---------- insight rule engine ----------
+  function bowlingInsights(balls){
+    var out = [];
+    if (balls.length < 6) { out.push({text:"Not enough deliveries logged yet for reliable patterns — six or more per length/line zone gives sturdier numbers.", note:""}); return out; }
+    var lb = lengthBreakdown(balls).filter(function(z){return z.balls>=3 && z.rate!==null;});
+    if (lb.length>=2){
+      lb = lb.slice().sort(function(a,b){return b.rate-a.rate;});
+      var worst=lb[0], best=lb[lb.length-1];
+      if (worst.rate - best.rate > 1.3){
+        out.push({text:"Economy climbs to "+worst.rate.toFixed(1)+" bowling "+worst.label.toLowerCase()+", versus "+best.rate.toFixed(1)+" on "+best.label.toLowerCase()+".", note:"Length breakdown"});
+      }
+    }
+    var totalW = balls.filter(function(b){return b.outcome==="W";}).length;
+    if (totalW>0){
+      var lenAtW = {};
+      balls.filter(function(b){return b.outcome==="W";}).forEach(function(b){ var l=lengthZoneFor(b.yPct).label; lenAtW[l]=(lenAtW[l]||0)+1; });
+      var topLen = Object.keys(lenAtW).sort(function(a,b){return lenAtW[b]-lenAtW[a];})[0];
+      out.push({text:Math.round((lenAtW[topLen]/totalW)*100)+"% of wickets ("+lenAtW[topLen]+" of "+totalW+") came bowling "+topLen.toLowerCase()+".", note:"Dismissal pattern"});
+    }
+    var boundaryBalls = balls.filter(function(b){return b.outcome==="4"||b.outcome==="6";});
+    if (boundaryBalls.length>=3){
+      var lenAtB = {};
+      boundaryBalls.forEach(function(b){ var l=lengthZoneFor(b.yPct).label; lenAtB[l]=(lenAtB[l]||0)+1; });
+      var topLenB = Object.keys(lenAtB).sort(function(a,b){return lenAtB[b]-lenAtB[a];})[0];
+      out.push({text:"Most boundaries conceded ("+lenAtB[topLenB]+") came bowling "+topLenB.toLowerCase()+" — the release point to tighten up first.", note:"Boundary risk"});
+    }
+    var st = statsFor(balls);
+    out.push({text:"Overall: "+balls.length+" balls, economy "+st.economy.toFixed(1)+", "+st.dotPct.toFixed(0)+"% dot balls, "+st.wickets+" wicket"+(st.wickets===1?"":"s")+".", note:"Summary"});
+    return out;
+  }
+  function battingInsights(balls, hand){
+    var out = [];
+    if (balls.length < 6) { out.push({text:"Not enough deliveries logged yet for reliable patterns.", note:""}); return out; }
+    var dismissals = balls.filter(function(b){return b.outcome==="W";});
+    if (dismissals.length>0){
+      var shotAtOut = {}; dismissals.forEach(function(b){ var s=b.shotType||"Unknown"; shotAtOut[s]=(shotAtOut[s]||0)+1; });
+      var topShot = Object.keys(shotAtOut).sort(function(a,b){return shotAtOut[b]-shotAtOut[a];})[0];
+      out.push({text:Math.round((shotAtOut[topShot]/dismissals.length)*100)+"% of dismissals ("+shotAtOut[topShot]+" of "+dismissals.length+") came playing the "+topShot.toLowerCase()+".", note:"Dismissal pattern"});
+      var lenAtOut = {}; dismissals.forEach(function(b){ var l=lengthZoneFor(b.yPct).label; lenAtOut[l]=(lenAtOut[l]||0)+1; });
+      var topLen = Object.keys(lenAtOut).sort(function(a,b){return lenAtOut[b]-lenAtOut[a];})[0];
+      out.push({text:"Most dismissals came against "+topLen.toLowerCase()+" deliveries.", note:"Length vulnerability"});
+    }
+    var vsPace = balls.filter(function(b){return b.bowlPace==="Pace";});
+    var vsSpin = balls.filter(function(b){return b.bowlPace==="Spin";});
+    if (vsPace.length>=4 && vsSpin.length>=4){
+      var srPace = statsFor(vsPace).strikeRate, srSpin = statsFor(vsSpin).strikeRate;
+      if (Math.abs(srPace-srSpin) > 15){
+        var stronger = srPace>srSpin ? "pace" : "spin", weaker = srPace>srSpin ? "spin" : "pace";
+        out.push({text:"Strike rate is noticeably higher against "+stronger+" ("+(srPace>srSpin?srPace:srSpin).toFixed(0)+") than "+weaker+" ("+(srPace>srSpin?srSpin:srPace).toFixed(0)+").", note:"Bowling type faced"});
+      }
+    }
+    var shotCounts = {};
+    balls.forEach(function(b){ if (b.shotType){ shotCounts[b.shotType]=(shotCounts[b.shotType]||0)+1; } });
+    var favShot = Object.keys(shotCounts).sort(function(a,b){return shotCounts[b]-shotCounts[a];})[0];
+    if (favShot){
+      var favBalls = balls.filter(function(b){return b.shotType===favShot;});
+      var favSt = statsFor(favBalls);
+      out.push({text:"Most-played shot is the "+favShot.toLowerCase()+" ("+favBalls.length+" times), averaging "+favSt.strikeRate.toFixed(0)+" strike rate.", note:"Shot tendency"});
+    }
+    var st2 = statsFor(balls);
+    out.push({text:"Overall: "+balls.length+" balls faced, "+st2.totalRuns+" runs, strike rate "+st2.strikeRate.toFixed(0)+", "+st2.dismissals+" dismissal"+(st2.dismissals===1?"":"s")+".", note:"Summary"});
+    return out;
+  }
+
+  // ---------- simple SVG line chart ----------
+  function lineChart(points, opts){
+    opts = opts || {};
+    var W=320, H=140, padL=34, padR=12, padT=14, padB=24;
+    if (points.length===0) return '<div class="pm-empty">No session history yet.</div>';
+    var vals = points.map(function(p){return p.y;});
+    var minV = Math.min.apply(null, vals.concat([0])), maxV = Math.max.apply(null, vals.concat([1]));
+    if (maxV===minV) maxV = minV+1;
+    var xStep = points.length>1 ? (W-padL-padR)/(points.length-1) : 0;
+    function px(i){ return padL + i*xStep; }
+    function py(v){ return H-padB - ((v-minV)/(maxV-minV))*(H-padT-padB); }
+    var path = points.map(function(p,i){ return (i===0?"M":"L")+px(i)+","+py(p.y); }).join(" ");
+    var svg = '<svg viewBox="0 0 '+W+' '+H+'" style="width:100%;height:auto;display:block;">';
+    svg += '<line x1="'+padL+'" y1="'+(H-padB)+'" x2="'+(W-padR)+'" y2="'+(H-padB)+'" stroke="rgba(238,242,246,0.2)" stroke-width="1"/>';
+    svg += '<path d="'+path+'" fill="none" stroke="'+(opts.color||"#22c58b")+'" stroke-width="2"/>';
+    points.forEach(function(p,i){
+      svg += '<circle cx="'+px(i)+'" cy="'+py(p.y)+'" r="3.2" fill="'+(opts.color||"#22c58b")+'"/>';
+      svg += '<text x="'+px(i)+'" y="'+(H-padB+14)+'" text-anchor="middle" font-size="8" fill="rgba(238,242,246,0.55)" font-family="IBM Plex Mono, monospace">'+esc(p.label)+'</text>';
+      svg += '<text x="'+px(i)+'" y="'+(py(p.y)-8)+'" text-anchor="middle" font-size="9" fill="#eef2f6" font-weight="600" font-family=\'IBM Plex Mono, monospace\'>'+p.y.toFixed(1)+'</text>';
+    });
+    svg += '</svg>';
+    return svg;
+  }
+
+  var state = { mode:"matchup", batterKey:null, bowlerKey:null, squadDate:new Date().toISOString().slice(0,10), trendKey:null, trendRole:null, insightKey:null, insightRole:null };
+
+  var app = document.getElementById("app");
+
+  function playerOptions(map, placeholder){
+    var keys = Object.keys(map).sort();
+    var html = '<option value="">'+placeholder+'</option>';
+    keys.forEach(function(k){ html += '<option value="'+esc(k)+'">'+esc(map[k].name)+'</option>'; });
+    return html;
+  }
+
+  function render(){
+    var html = "";
+    html += '<div class="pm-header"><div><div class="pm-subtitle">ProCoach OS &middot; Insights</div><div class="pm-title">Squad Analysis</div></div></div>';
+
+    if (!dataReady){
+      html += '<div class="pm-panel"><div class="pm-empty">Loading saved sessions&hellip;</div></div>';
+      app.innerHTML = html;
+      return;
+    }
+
+    html += '<div class="pm-mode-tabs">';
+    [["matchup","Matchup"],["squad","Squad Report"],["trends","Trends"],["insights","Auto-Insights"]].forEach(function(m){
+      html += '<button class="pm-mode-tab '+(state.mode===m[0]?"active":"")+'" data-action="set-mode" data-mode="'+m[0]+'">'+m[1]+'</button>';
+    });
+    html += '</div>';
+
+    if (Object.keys(bowlers).length===0 && Object.keys(batters).length===0){
+      html += '<div class="pm-panel"><div class="pm-empty">No saved sessions found yet. Save a session in the Pitch Map or Batting Impact Map tools first — this page reads from the same device storage automatically.</div></div>';
+      app.innerHTML = html;
+      return;
+    }
+
+    if (state.mode==="matchup") html += renderMatchup();
+    else if (state.mode==="squad") html += renderSquad();
+    else if (state.mode==="trends") html += renderTrends();
+    else html += renderInsights();
+
+    app.innerHTML = html;
+    wireInputs();
+  }
+
+  function renderMatchup(){
+    var html = '<div class="pm-row">';
+    html += '<div><div class="pm-label">Batter</div><select class="pm-input" id="sel-batter">'+playerOptions(batters,"Select batter")+'</select></div>';
+    html += '<div><div class="pm-label">Bowler</div><select class="pm-input" id="sel-bowler">'+playerOptions(bowlers,"Select bowler")+'</select></div>';
+    html += '</div>';
+
+    if (!state.batterKey || !state.bowlerKey || !batters[state.batterKey] || !bowlers[state.bowlerKey]){
+      html += '<div class="pm-panel"><div class="pm-empty">Pick a batter and a bowler to compare tendencies.</div></div>';
+      return html;
+    }
+    var bat = batters[state.batterKey], bowl = bowlers[state.bowlerKey];
+    var batBalls = allBalls(bat), bowlBalls = allBalls(bowl);
+    var batHand = lastHand(bat);
+
+    html += '<div class="pm-callout">This compares each player\'s <b>independently logged tendencies</b> — not head-to-head data from actually facing each other. Treat it as a statistical lens, not a literal replay.</div>';
+
+    // overlap detection
+    var bowlLen = lengthBreakdown(bowlBalls).slice().sort(function(a,b){return b.balls-a.balls;})[0];
+    var bowlLine = lineBreakdown(bowlBalls, batHand).slice().sort(function(a,b){return b.balls-a.balls;})[0];
+    var batDismissals = batBalls.filter(function(b){return b.outcome==="W";});
+    var batWeakLen = null, batWeakLine = null;
+    if (batDismissals.length>0){
+      var lc={}; batDismissals.forEach(function(b){var l=lengthZoneFor(b.yPct).label; lc[l]=(lc[l]||0)+1;});
+      batWeakLen = Object.keys(lc).sort(function(a,b){return lc[b]-lc[a];})[0];
+      var lnc={}; batDismissals.forEach(function(b){var l=lineLabelArr(batHand)[lineZoneIndex(b.xPct)]; lnc[l]=(lnc[l]||0)+1;});
+      batWeakLine = Object.keys(lnc).sort(function(a,b){return lnc[b]-lnc[a];})[0];
+    }
+    html += '<div class="pm-panel"><div class="pm-panel-title">Matchup read</div>';
+    if (bowlLen && batWeakLen && bowlLen.label.toLowerCase()===batWeakLen.toLowerCase()){
+      html += '<div class="pm-insight-card"><div class="pm-insight-dot" style="background:#ff6b52"></div><div><div class="pm-insight-text"><b>'+esc(bowl.name)+'</b>\'s most-bowled length ('+bowlLen.label+') matches exactly where <b>'+esc(bat.name)+'</b> has been dismissed most often.</div><div class="pm-insight-note">Strong statistical overlap</div></div></div>';
+    }
+    if (bowlLine && batWeakLine && bowlLine.label.toLowerCase()===batWeakLine.toLowerCase()){
+      html += '<div class="pm-insight-card"><div class="pm-insight-dot" style="background:#ff6b52"></div><div><div class="pm-insight-text"><b>'+esc(bowl.name)+'</b>\'s most-bowled line ('+bowlLine.label+') matches where <b>'+esc(bat.name)+'</b> has been dismissed most often.</div><div class="pm-insight-note">Strong statistical overlap</div></div></div>';
+    }
+    if (!bowlLen || !batWeakLen || (bowlLen.label.toLowerCase()!==batWeakLen.toLowerCase() && (!bowlLine || !batWeakLine || bowlLine.label.toLowerCase()!==batWeakLine.toLowerCase()))){
+      html += '<div class="pm-insight-card"><div class="pm-insight-dot"></div><div><div class="pm-insight-text">'+esc(bowl.name)+' bowls '+(bowlLen?bowlLen.label.toLowerCase():"—")+' most often; '+esc(bat.name)+'\'s dismissal pattern doesn\'t line up strongly with that yet — no clear statistical edge either way from the data logged so far.</div></div></div>';
+    }
+    html += '</div>';
+
+    html += '<div class="pm-two-col">';
+    html += '<div class="pm-panel"><div class="pm-panel-title">'+esc(bowl.name)+' <span class="dim">bowling</span></div>'+barPanel("Length bowled", lengthBreakdown(bowlBalls), "#22c58b")+'<div class="pm-seam"></div>'+barPanel("Line bowled", lineBreakdown(bowlBalls, batHand), "#22c58b")+'</div>';
+    html += '<div class="pm-panel"><div class="pm-panel-title">'+esc(bat.name)+' <span class="dim">batting</span></div>'+barPanel("Length faced", lengthBreakdown(batBalls), "#e0ab2c")+'<div class="pm-seam"></div>'+barPanel("Line faced", lineBreakdown(batBalls, batHand), "#e0ab2c")+'</div>';
+    html += '</div>';
+    return html;
+  }
+
+  function liveSquadFor(date){
+    var bowlerList = [], batterList = [];
+    liveSessions.filter(function(s){return s.date===date;}).forEach(function(s){
+      Object.keys(s.bowlerRoster||{}).forEach(function(id){
+        var bp = s.bowlerRoster[id];
+        var balls = (s.deliveries||[]).filter(function(d){return d.bowlerId===id;});
+        if (balls.length) bowlerList.push({ name: bp.name, hand: mostCommon(balls.map(function(b){return b.batterHand;}))||"RHB", balls: balls });
+      });
+      Object.keys(s.batterRoster||{}).forEach(function(id){
+        var btp = s.batterRoster[id];
+        var balls = (s.deliveries||[]).filter(function(d){return d.batterId===id;});
+        if (balls.length) batterList.push({ name: btp.name, hand: btp.hand, balls: balls });
+      });
+    });
+    return { bowlerList:bowlerList, batterList:batterList };
+  }
+
+  function renderSquad(){
+    var html = '<div class="pm-row"><div><div class="pm-label">Session date</div><input class="pm-input" type="date" id="squad-date" value="'+esc(state.squadDate)+'"></div></div>';
+    var bowlMatches = bowlSessions.filter(function(s){return s.date===state.squadDate;});
+    var batMatches = batSessions.filter(function(s){return s.date===state.squadDate;});
+    var bowlerList = [], batterList = [];
+    bowlMatches.forEach(function(s){ Object.values(s.bowlers||{}).forEach(function(b){ if (b.balls && b.balls.length) bowlerList.push(b); }); });
+    batMatches.forEach(function(s){ Object.values(s.batters||{}).forEach(function(b){ if (b.balls && b.balls.length) batterList.push(b); }); });
+    var liveSq = liveSquadFor(state.squadDate);
+    bowlerList = bowlerList.concat(liveSq.bowlerList);
+    batterList = batterList.concat(liveSq.batterList);
+
+    if (bowlerList.length===0 && batterList.length===0){
+      html += '<div class="pm-panel"><div class="pm-empty">No sessions saved for this date.</div></div>';
+      return html;
+    }
+
+    html += '<div class="pm-panel"><div class="pm-panel-title">Squad summary <span class="dim">'+esc(state.squadDate)+'</span></div>';
+    bowlerList.forEach(function(b){
+      var st = statsFor(b.balls);
+      html += '<div class="pm-player-card"><span class="pm-player-name">'+esc(b.name)+'</span><span class="pm-player-role">Bowling</span><div class="pm-player-stats">'+b.balls.length+' balls &middot; econ '+st.economy.toFixed(1)+' &middot; '+st.wickets+' wkt'+(st.wickets===1?"":"s")+' &middot; '+st.dotPct.toFixed(0)+'% dots</div></div>';
+    });
+    batterList.forEach(function(b){
+      var st = statsFor(b.balls);
+      html += '<div class="pm-player-card"><span class="pm-player-name">'+esc(b.name)+'</span><span class="pm-player-role" style="color:#e0ab2c">Batting</span><div class="pm-player-stats">'+b.balls.length+' balls &middot; '+st.totalRuns+' runs &middot; SR '+st.strikeRate.toFixed(0)+' &middot; '+st.dismissals+' out</div></div>';
+    });
+    html += '</div>';
+    html += '<div class="pm-btn-row"><button class="pm-btn" data-action="print-squad">Print Squad Report</button></div>';
+    return html;
+  }
+
+  function renderTrends(){
+    var allKeys = {};
+    Object.keys(bowlers).forEach(function(k){ allKeys[k] = allKeys[k]||{name:bowlers[k].name}; allKeys[k].bowl=true; });
+    Object.keys(batters).forEach(function(k){ allKeys[k] = allKeys[k]||{name:batters[k].name}; allKeys[k].bat=true; });
+    var options = Object.keys(allKeys).sort().map(function(k){ return '<option value="'+esc(k)+'">'+esc(allKeys[k].name)+'</option>'; }).join("");
+    var html = '<div class="pm-row"><div><div class="pm-label">Player</div><select class="pm-input" id="sel-trend">'+'<option value="">Select player</option>'+options+'</select></div></div>';
+
+    if (!state.trendKey || !allKeys[state.trendKey]){
+      html += '<div class="pm-panel"><div class="pm-empty">Pick a player to see their trend across saved sessions.</div></div>';
+      return html;
+    }
+    if (bowlers[state.trendKey]){
+      var bowlEntries = bowlers[state.trendKey].entries;
+      var econPts = bowlEntries.map(function(e,i){ var st=statsFor(e.balls); return {x:i, y:st.economy, label:e.date.slice(5)}; });
+      html += '<div class="pm-panel"><div class="pm-panel-title">Economy over sessions <span class="dim">bowling</span></div>'+lineChart(econPts,{color:"#22c58b"})+'</div>';
+      var dotPts = bowlEntries.map(function(e,i){ var st=statsFor(e.balls); return {x:i, y:st.dotPct, label:e.date.slice(5)}; });
+      html += '<div class="pm-panel"><div class="pm-panel-title">Dot ball % over sessions</div>'+lineChart(dotPts,{color:"#3d8bd6"})+'</div>';
+    }
+    if (batters[state.trendKey]){
+      var batEntries = batters[state.trendKey].entries;
+      var srPts = batEntries.map(function(e,i){ var st=statsFor(e.balls); return {x:i, y:st.strikeRate, label:e.date.slice(5)}; });
+      html += '<div class="pm-panel"><div class="pm-panel-title">Strike rate over sessions <span class="dim">batting</span></div>'+lineChart(srPts,{color:"#e0ab2c"})+'</div>';
+      var runPts = batEntries.map(function(e,i){ var st=statsFor(e.balls); return {x:i, y:st.totalRuns, label:e.date.slice(5)}; });
+      html += '<div class="pm-panel"><div class="pm-panel-title">Runs per session</div>'+lineChart(runPts,{color:"#e0ab2c"})+'</div>';
+    }
+    return html;
+  }
+
+  function renderInsights(){
+    var allKeys = {};
+    Object.keys(bowlers).forEach(function(k){ allKeys[k] = allKeys[k]||{name:bowlers[k].name}; allKeys[k].bowl=true; });
+    Object.keys(batters).forEach(function(k){ allKeys[k] = allKeys[k]||{name:batters[k].name}; allKeys[k].bat=true; });
+    var options = Object.keys(allKeys).sort().map(function(k){ return '<option value="'+esc(k)+'">'+esc(allKeys[k].name)+'</option>'; }).join("");
+    var html = '<div class="pm-row"><div><div class="pm-label">Player</div><select class="pm-input" id="sel-insight">'+'<option value="">Select player</option>'+options+'</select></div></div>';
+
+    if (!state.insightKey || !allKeys[state.insightKey]){
+      html += '<div class="pm-panel"><div class="pm-empty">Pick a player to generate insights from their logged sessions.</div></div>';
+      return html;
+    }
+    if (bowlers[state.insightKey]){
+      var bBalls = allBalls(bowlers[state.insightKey]);
+      html += '<div class="pm-panel"><div class="pm-panel-title">'+esc(allKeys[state.insightKey].name)+' <span class="dim">bowling insights</span></div>';
+      bowlingInsights(bBalls).forEach(function(ins){
+        html += '<div class="pm-insight-card"><div class="pm-insight-dot"></div><div><div class="pm-insight-text">'+esc(ins.text)+'</div>'+(ins.note?'<div class="pm-insight-note">'+esc(ins.note)+'</div>':'')+'</div></div>';
+      });
+      html += '</div>';
+    }
+    if (batters[state.insightKey]){
+      var batB = allBalls(batters[state.insightKey]);
+      var hand = lastHand(batters[state.insightKey]);
+      html += '<div class="pm-panel"><div class="pm-panel-title">'+esc(allKeys[state.insightKey].name)+' <span class="dim">batting insights</span></div>';
+      battingInsights(batB, hand).forEach(function(ins){
+        html += '<div class="pm-insight-card"><div class="pm-insight-dot" style="background:#e0ab2c"></div><div><div class="pm-insight-text">'+esc(ins.text)+'</div>'+(ins.note?'<div class="pm-insight-note">'+esc(ins.note)+'</div>':'')+'</div></div>';
+      });
+      html += '</div>';
+    }
+    return html;
+  }
+
+  function wireInputs(){
+    var sb = document.getElementById("sel-batter"); if (sb){ sb.value = state.batterKey||""; sb.addEventListener("change", function(){ state.batterKey = sb.value||null; render(); }); }
+    var sw = document.getElementById("sel-bowler"); if (sw){ sw.value = state.bowlerKey||""; sw.addEventListener("change", function(){ state.bowlerKey = sw.value||null; render(); }); }
+    var sd = document.getElementById("squad-date"); if (sd){ sd.addEventListener("change", function(){ state.squadDate = sd.value; render(); }); }
+    var st = document.getElementById("sel-trend"); if (st){ st.value = state.trendKey||""; st.addEventListener("change", function(){ state.trendKey = st.value||null; render(); }); }
+    var si = document.getElementById("sel-insight"); if (si){ si.value = state.insightKey||""; si.addEventListener("change", function(){ state.insightKey = si.value||null; render(); }); }
+  }
+
+  app.addEventListener("click", function(e){
+    var el = e.target.closest("[data-action]");
+    if (!el) return;
+    var action = el.getAttribute("data-action");
+    if (action==="set-mode"){ state.mode = el.getAttribute("data-mode"); render(); }
+    else if (action==="print-squad"){ printSquad(); }
+  });
+
+  function printSquad(){
+    var bowlMatches = bowlSessions.filter(function(s){return s.date===state.squadDate;});
+    var batMatches = batSessions.filter(function(s){return s.date===state.squadDate;});
+    var bowlerList = [], batterList = [];
+    bowlMatches.forEach(function(s){ Object.values(s.bowlers||{}).forEach(function(b){ if (b.balls && b.balls.length) bowlerList.push(b); }); });
+    batMatches.forEach(function(s){ Object.values(s.batters||{}).forEach(function(b){ if (b.balls && b.balls.length) batterList.push(b); }); });
+    var liveSq = liveSquadFor(state.squadDate);
+    bowlerList = bowlerList.concat(liveSq.bowlerList);
+    batterList = batterList.concat(liveSq.batterList);
+    var container = document.getElementById("print-report");
+    var html = '<div class="pr-player"><div class="pr-title">Squad Session Report</div><div class="pr-sub">'+esc(state.squadDate)+' &middot; ProCoach OS</div>';
+    html += '<table style="width:100%;border-collapse:collapse;font-size:11px;"><tr style="background:#eef2f6;"><th style="border:1px solid #ccc;padding:5px 8px;text-align:left;">Player</th><th style="border:1px solid #ccc;padding:5px 8px;">Role</th><th style="border:1px solid #ccc;padding:5px 8px;">Balls</th><th style="border:1px solid #ccc;padding:5px 8px;">Key stats</th></tr>';
+    bowlerList.forEach(function(b){
+      var st = statsFor(b.balls);
+      html += '<tr><td style="border:1px solid #ccc;padding:5px 8px;">'+esc(b.name)+'</td><td style="border:1px solid #ccc;padding:5px 8px;">Bowling</td><td style="border:1px solid #ccc;padding:5px 8px;">'+b.balls.length+'</td><td style="border:1px solid #ccc;padding:5px 8px;">Econ '+st.economy.toFixed(1)+', '+st.wickets+' wkt, '+st.dotPct.toFixed(0)+'% dots</td></tr>';
+    });
+    batterList.forEach(function(b){
+      var st = statsFor(b.balls);
+      html += '<tr><td style="border:1px solid #ccc;padding:5px 8px;">'+esc(b.name)+'</td><td style="border:1px solid #ccc;padding:5px 8px;">Batting</td><td style="border:1px solid #ccc;padding:5px 8px;">'+b.balls.length+'</td><td style="border:1px solid #ccc;padding:5px 8px;">'+st.totalRuns+' runs, SR '+st.strikeRate.toFixed(0)+', '+st.dismissals+' out</td></tr>';
+    });
+    html += '</table></div>';
+    container.innerHTML = html;
+    setTimeout(function(){ window.print(); }, 60);
+  }
+
+  render();
+  Promise.all([
+    migrateLegacyLocalStorage("pitchsession:", "pitchsessions"),
+    migrateLegacyLocalStorage("battingsession:", "battingsessions")
+  ]).then(function(){
+    return Promise.all([dbGetAll("pitchsessions"), dbGetAll("battingsessions"), dbGetAll("livesessions")]);
+  }).then(function(results){
+    bowlSessions = results[0].map(function(r){ return r.data; }).sort(function(a,b){ return (a.date||"").localeCompare(b.date||""); });
+    batSessions = results[1].map(function(r){ return r.data; }).sort(function(a,b){ return (a.date||"").localeCompare(b.date||""); });
+    liveSessions = results[2].map(function(r){ return r.data; }).sort(function(a,b){ return (a.date||"").localeCompare(b.date||""); });
+    bowlers = aggregate(bowlSessions, "bowlers");
+    batters = aggregate(batSessions, "batters");
+    foldLiveSessionsIntoAggregates(liveSessions, bowlers, batters);
+    dataReady = true;
+    render();
+  }).catch(function(){
+    dataReady = true;
+    render();
+  });
+})();
+</script>
+</body>
+</html>
