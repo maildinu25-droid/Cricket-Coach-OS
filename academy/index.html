@@ -999,7 +999,7 @@ const SUPABASE_URL = 'https://tjcrpnwmaadfcvdbthaz.supabase.co';
 // instead of silently staying stale. version.json must be redeployed
 // alongside this file on every future update, with a matching bump to
 // APP_BUILD_VERSION below — these two must always move together.
-const APP_BUILD_VERSION = '2026-08-24-20:07';
+const APP_BUILD_VERSION = '2026-08-24-20:17';
 async function checkForUpdate() {
   try {
     const res = await fetch('./version.json', { cache: 'no-store' });
@@ -1716,7 +1716,7 @@ async function loadDashboard() {
   const announceListEl = document.getElementById('dashboard-announcements-list');
   const { data: announcements, error: announceErr } = await supabase.from('announcements')
     .select('id, title, body, created_by, created_at').eq('org_id', currentOrgId).order('created_at', { ascending: false }).limit(5);
-  if (announceErr) { reportError(announceErr, 'Dashboard announcements'); announceListEl.innerHTML = '<div class="empty-state">Could not load.</div>'; }
+  if (announceErr) { reportError(announceErr, `Dashboard announcements (org=${currentOrgId})`); announceListEl.innerHTML = '<div class="empty-state">Could not load.</div>'; }
   else if (!announcements || !announcements.length) { announceListEl.innerHTML = '<div class="empty-state">No announcements yet.</div>'; }
   else {
     const nameByAuthor = await profilesByIds(announcements.map(a => a.created_by));
@@ -1730,7 +1730,7 @@ async function loadDashboard() {
     .eq('org_id', currentOrgId)
     .order('created_at', { ascending: false })
     .limit(8);
-  if (activityErr) { reportError(activityErr, 'Dashboard activity'); activityListEl.innerHTML = '<div class="empty-state">Could not load.</div>'; }
+  if (activityErr) { reportError(activityErr, `Dashboard activity (org=${currentOrgId})`); activityListEl.innerHTML = '<div class="empty-state">Could not load.</div>'; }
   else if (!recentActivity || !recentActivity.length) { activityListEl.innerHTML = '<div class="empty-state">No recent activity.</div>'; }
   else {
     const nameByActor = await profilesByIds(recentActivity.map(a => a.actor_id));
@@ -1786,7 +1786,7 @@ async function loadDashboard() {
   const trendEl = document.getElementById('dashboard-activity-trend');
   const eightWeeksAgo = new Date(Date.now() - 8 * 7 * 86400000).toISOString().slice(0, 10);
   const { data: trendSessions, error: trendErr } = await supabase.from('sessions').select('date').eq('org_id', currentOrgId).gte('date', eightWeeksAgo);
-  if (trendErr) { reportError(trendErr, 'Dashboard activity trend'); trendEl.innerHTML = '<div class="empty-state">Could not load.</div>'; }
+  if (trendErr) { reportError(trendErr, `Dashboard activity trend (org=${currentOrgId})`); trendEl.innerHTML = '<div class="empty-state">Could not load.</div>'; }
   else {
     const weeks = [];
     for (let i = 7; i >= 0; i--) {
@@ -1801,11 +1801,11 @@ async function loadDashboard() {
   // ---------- Coach Workload (last 30 days, same computation as the Coaches panel) ----------
   const workloadEl = document.getElementById('dashboard-coach-workload');
   const { data: memberRows, error: memberErr } = await supabase.from('memberships').select('user_id, role').eq('org_id', currentOrgId).eq('status', 'active').in('role', ['owner', 'admin', 'head_coach', 'assistant_coach']);
-  if (memberErr) { reportError(memberErr, 'Dashboard coach workload'); workloadEl.innerHTML = '<div class="empty-state">Could not load.</div>'; }
+  if (memberErr) { reportError(memberErr, `Dashboard coach workload (org=${currentOrgId})`); workloadEl.innerHTML = '<div class="empty-state">Could not load.</div>'; }
   else {
     const { data: workloadLogs, error: workloadErr } = await supabase.from('activity_log').select('actor_id').eq('org_id', currentOrgId).eq('action', 'insert')
       .in('table_name', ['sessions', 'matches', 'assessments']).gte('created_at', new Date(Date.now() - 30*24*60*60*1000).toISOString());
-    if (workloadErr) reportError(workloadErr, 'Dashboard coach workload');
+    if (workloadErr) reportError(workloadErr, `Dashboard coach workload/2 (org=${currentOrgId})`);
     const countByUser = {};
     for (const l of (workloadLogs || [])) countByUser[l.actor_id] = (countByUser[l.actor_id] || 0) + 1;
     const names = await profilesByIds(memberRows.map(m => m.user_id));
@@ -1820,13 +1820,13 @@ async function loadDashboard() {
   const fixturesEl = document.getElementById('dashboard-fixtures');
   fixturesEl.innerHTML = '<div class="empty-state">Loading...</div>';
   const { data: tournaments, error: tournamentsErr } = await supabase.from('tournaments').select('id, name').eq('org_id', currentOrgId);
-  if (tournamentsErr) { reportError(tournamentsErr, 'Dashboard fixtures'); fixturesEl.innerHTML = '<div class="empty-state">Could not load.</div>'; }
+  if (tournamentsErr) { reportError(tournamentsErr, `Dashboard fixtures (org=${currentOrgId})`); fixturesEl.innerHTML = '<div class="empty-state">Could not load.</div>'; }
   else if (!tournaments || !tournaments.length) {
     fixturesEl.innerHTML = '<div class="empty-state">No tournaments yet.</div>';
   } else {
     const { data: fixtures, error: fixturesErr } = await supabase.from('fixtures').select('id, date, opponent, venue, tournament_id')
       .in('tournament_id', tournaments.map(t => t.id)).gte('date', today).order('date').limit(5);
-    if (fixturesErr) { reportError(fixturesErr, 'Dashboard fixtures'); fixturesEl.innerHTML = '<div class="empty-state">Could not load.</div>'; }
+    if (fixturesErr) { reportError(fixturesErr, `Dashboard fixtures/2 (org=${currentOrgId})`); fixturesEl.innerHTML = '<div class="empty-state">Could not load.</div>'; }
     else if (!fixtures || !fixtures.length) { fixturesEl.innerHTML = '<div class="empty-state">No upcoming fixtures.</div>'; }
     else {
       fixturesEl.innerHTML = '';
