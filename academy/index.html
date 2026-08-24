@@ -208,6 +208,8 @@
   @media (max-width: 560px) { .calGrid .calCell { min-height: 42px; padding: 3px; } .calGrid .calCell .calDate { font-size: 10.5px; } }
 
   /* ---------- Bottom-sheet modal (forms open here, matching the individual app exactly) ---------- */
+  #update-banner { display: none; position: fixed; top: 0; left: 0; right: 0; z-index: 500; background: var(--green); color: #04140d; padding: 10px 16px; padding-top: max(10px, env(safe-area-inset-top)); font-size: 13px; font-weight: 600; align-items: center; justify-content: center; gap: 12px; flex-wrap: wrap; }
+  #update-banner-btn { background: #04140d; color: var(--green); border: none; border-radius: 999px; padding: 6px 14px; font-weight: 700; font-size: 12.5px; cursor: pointer; }
   .modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.6); z-index: 50; align-items: flex-end; justify-content: center; }
   .iframeOverlay { position: fixed; inset: 0; z-index: 200; background: var(--navy); display: flex; flex-direction: column; }
   .iframeOverlayBar { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 10px 16px; border-bottom: 1px solid var(--surface-border); flex-wrap: wrap; background: var(--navy-2); }
@@ -291,6 +293,11 @@
 </style>
 </head>
 <body>
+
+<div id="update-banner" style="display:none;">
+  <span>A new version is available.</span>
+  <button type="button" id="update-banner-btn">Refresh now</button>
+</div>
 
 <div id="auth-screen">
   <div class="auth-card">
@@ -975,6 +982,35 @@
 // CONFIG — replace with your project's real values
 // ============================================================
 const SUPABASE_URL = 'https://tjcrpnwmaadfcvdbthaz.supabase.co';
+
+// ============================================================
+// UPDATE DETECTION — a plain static file has no built-in way to know
+// it's stale, and iOS home-screen icons in particular can keep
+// serving an old cached copy indefinitely, even across normal reopens.
+// This fetches a tiny version.json (deployed alongside this file,
+// same folder) with cache explicitly bypassed, and compares it to the
+// version baked into THIS loaded copy. On mismatch, shows a banner
+// instead of silently staying stale. version.json must be redeployed
+// alongside this file on every future update, with a matching bump to
+// APP_BUILD_VERSION below — these two must always move together.
+const APP_BUILD_VERSION = '2026-08-24-18:45';
+async function checkForUpdate() {
+  try {
+    const res = await fetch('./version.json', { cache: 'no-store' });
+    if (!res.ok) return;
+    const data = await res.json();
+    if (data.version && data.version !== APP_BUILD_VERSION) {
+      const banner = document.getElementById('update-banner');
+      banner.style.display = 'flex';
+    }
+  } catch (e) { /* offline or version.json missing — not worth surfacing as an error */ }
+}
+document.getElementById('update-banner-btn').addEventListener('click', () => {
+  location.href = location.pathname + '?v=' + Date.now(); // cache-busting query param forces a real fresh fetch
+});
+checkForUpdate();
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') checkForUpdate(); });
+setInterval(checkForUpdate, 10 * 60 * 1000); // also catch updates during a long-running session
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRqY3JwbndtYWFkZmN2ZGJ0aGF6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODcwMzI0NDUsImV4cCI6MjEwMjYwODQ0NX0.nq69tZKYzY0jAxD16OPfiXSW8BeemQ16KsDf9qBy6yI';
 
 // Renders directly into the page, not just the console — some mobile
