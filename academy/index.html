@@ -929,6 +929,8 @@
       <div class="sectionHeading" style="margin-top:0;">Razorpay Plan Mapping</div>
       <p style="color:var(--text-dim); font-size:12.5px; margin-top:-6px;">Platform-wide — one Razorpay account serves every academy. Create matching Plans in the Razorpay Dashboard first, then paste their Plan IDs here.</p>
       <div id="platform-admin-plan-mapping"></div>
+      <div class="sectionHeading">Enterprise Leads</div>
+      <div id="platform-admin-leads"></div>
       <div class="sectionHeading">Organizations</div>
       <div id="platform-admin-list"></div>
     </div>
@@ -5569,7 +5571,7 @@ async function loadSubscription() {
     </div>`;
   }).join('');
   document.querySelectorAll('[data-upgrade-to]').forEach(btn => btn.onclick = () => openRazorpayCheckout(allPlans.find(p => p.id === btn.dataset.upgradeTo)));
-  document.querySelectorAll('[data-contact-sales]').forEach(btn => btn.onclick = () => showToast('Enterprise pricing is custom — this would open a contact form once one exists.', 'ok'));
+  document.querySelectorAll('[data-contact-sales]').forEach(btn => btn.onclick = () => openEnterpriseLeadForm());
 
   // ---------- Billing history ----------
   const historyEl = document.getElementById('subscription-billing-history');
@@ -5622,6 +5624,46 @@ async function loadSubscription() {
     testHeadingEl.style.display = 'none';
     testPanelEl.style.display = 'none';
   }
+}
+
+function enterpriseLeadFormHtml() {
+  return sheetHead('Contact Sales — Enterprise') + `
+    <p style="color:var(--text-dim); font-size:13px; margin-top:0;">Tell us a bit about your academy and we'll reach out to put together custom terms.</p>
+    <div class="formgrid">
+      <label>Your name<input id="lead-name"></label>
+      <label>Email<input type="email" id="lead-email" value="${esc(session?.user?.email || '')}"></label>
+      <label class="full">Academy name<input id="lead-academy-name"></label>
+      <label>Approx. players<input type="number" id="lead-players"></label>
+      <label>Approx. teams<input type="number" id="lead-teams"></label>
+      <label class="full">Anything else we should know? <span class="muted" style="font-weight:400;">(optional)</span><textarea id="lead-message"></textarea></label>
+    </div>
+    <button class="btn primary" id="submit-lead-btn" style="margin-top:14px; width:auto;">Submit</button>`;
+}
+function openEnterpriseLeadForm() {
+  openSheet(enterpriseLeadFormHtml());
+  document.getElementById('submit-lead-btn').addEventListener('click', async () => {
+    const contactName = document.getElementById('lead-name').value.trim();
+    const contactEmail = document.getElementById('lead-email').value.trim();
+    if (!contactName || !contactEmail) { showToast('Name and email are required.', 'error'); return; }
+    const row = {
+      org_id: currentOrgId || null,
+      submitted_by: session?.user?.id || null,
+      contact_name: contactName,
+      contact_email: contactEmail,
+      academy_name: document.getElementById('lead-academy-name').value.trim() || null,
+      approx_players: document.getElementById('lead-players').value || null,
+      approx_teams: document.getElementById('lead-teams').value || null,
+      message: document.getElementById('lead-message').value.trim() || null,
+    };
+    const { error } = await supabase.from('enterprise_leads').insert(row);
+    if (error) { showToast(error.message, 'error'); return; }
+    // Best-effort notification — the lead is already safely saved above
+    // regardless of whether this succeeds, so a failure here shouldn't
+    // block the person or look like their submission failed.
+    supabase.functions.invoke('notify-enterprise-lead', { body: row }).catch(() => {});
+    closeSheet();
+    showToast('Thanks — we\'ll be in touch shortly.', 'ok');
+  });
 }
 
 // supabase-js's functions.invoke() doesn't put the response body in
@@ -5713,6 +5755,7 @@ async function loadPlanMappingSection() {
 // ============================================================
 async function loadPlatformAdmin() {
   await loadPlanMappingSection();
+  await loadEnterpriseLeadsSection();
   const listEl = document.getElementById('platform-admin-list');
   listEl.innerHTML = '<div class="empty-state">Loading...</div>';
   const { data: orgs, error } = await supabase.from('organizations').select('id, name, created_at, subscriptions(*)').order('created_at', { ascending: false });
@@ -5736,6 +5779,11 @@ async function loadPlatformAdmin() {
     const trialInfo = sub?.status === 'trialing' && sub?.trial_end ? `Trial ends ${new Date(sub.trial_end).toLocaleDateString()}` : null;
     const period = sub?.current_period_start && sub?.current_period_end
       ? `${new Date(sub.current_period_start).toLocaleDateString()} → ${new Date(sub.current_period_end).toLocaleDateString()}` : null;
+    const customBits = [
+      sub?.custom_max_teams != null ? sub.custom_max_teams + ' teams' : null,
+      sub?.custom_max_players != null ? sub.custom_max_players + ' players' : null,
+      sub?.custom_max_coaches != null ? sub.custom_max_coaches + ' coaches' : null,
+    ].filter(Boolean).join(', ');
     return `<div class="entityCard">
       <div class="entityHead">
         <div><b>${esc(o.name)}</b><div class="muted">Created ${esc(new Date(o.created_at).toLocaleDateString())}</div></div>
@@ -5744,9 +5792,79 @@ async function loadPlatformAdmin() {
       <div class="muted" style="margin-top:8px;">Plan: ${esc(sub?.plan_id || '—')}${trialInfo ? ' · ' + esc(trialInfo) : ''}${period ? ' · ' + esc(period) : ''}</div>
       <div class="muted">Customer ID: ${esc(sub?.provider_customer_id || '—')} · Subscription ID: ${esc(sub?.provider_subscription_id || '—')}</div>
       <div class="muted">Usage: ${usage.players} players · ${usage.teams} teams · ${usage.coaches} coaches</div>
+      ${customBits ? `<div class="muted">Custom Enterprise terms: ${esc(customBits)}</div>` : ''}
+      ${sub?.custom_notes ? `<div class="muted">Notes: ${esc(sub.custom_notes)}</div>` : ''}
+      <button type="button" class="btn ghost" data-grant-enterprise="${o.id}" style="margin-top:8px; width:auto;">${sub?.plan_id === 'enterprise' ? 'Edit Enterprise Terms' : 'Grant Enterprise Access'}</button>
     </div>`;
   }).join('');
+
+  document.querySelectorAll('[data-grant-enterprise]').forEach(btn => {
+    btn.onclick = () => {
+      const org = orgs.find(o => o.id === btn.dataset.grantEnterprise);
+      const sub = Array.isArray(org.subscriptions) ? org.subscriptions[0] : org.subscriptions;
+      openGrantEnterpriseForm(org, sub);
+    };
+  });
 }
+
+function openGrantEnterpriseForm(org, sub) {
+  openSheet(sheetHead(`Grant Enterprise — ${esc(org.name)}`) + `
+    <p style="color:var(--text-dim); font-size:13px; margin-top:0;">Leave a field blank to use no limit (unlimited) for that resource. This only affects this one organization.</p>
+    <div class="formgrid">
+      <label>Max teams<input type="number" id="grant-teams" value="${sub?.custom_max_teams ?? ''}"></label>
+      <label>Max players<input type="number" id="grant-players" value="${sub?.custom_max_players ?? ''}"></label>
+      <label>Max coaches<input type="number" id="grant-coaches" value="${sub?.custom_max_coaches ?? ''}"></label>
+      <label>Agreed price (₹/month)<input type="number" id="grant-price" value="${sub?.custom_price_cents != null ? sub.custom_price_cents / 100 : ''}"></label>
+      <label class="full">Notes <span class="muted" style="font-weight:400;">(terms agreed, contract ref, etc.)</span><textarea id="grant-notes">${esc(sub?.custom_notes || '')}</textarea></label>
+    </div>
+    <button class="btn primary" id="save-grant-btn" style="margin-top:14px; width:auto;">Save</button>`);
+  document.getElementById('save-grant-btn').addEventListener('click', async () => {
+    const toIntOrNull = id => { const v = document.getElementById(id).value; return v === '' ? null : parseInt(v, 10); };
+    const priceVal = document.getElementById('grant-price').value;
+    const { error } = await supabase.from('subscriptions').update({
+      plan_id: 'enterprise',
+      status: 'active',
+      custom_max_teams: toIntOrNull('grant-teams'),
+      custom_max_players: toIntOrNull('grant-players'),
+      custom_max_coaches: toIntOrNull('grant-coaches'),
+      custom_price_cents: priceVal === '' ? null : Math.round(parseFloat(priceVal) * 100),
+      custom_notes: document.getElementById('grant-notes').value.trim() || null,
+      updated_at: new Date().toISOString(),
+    }).eq('org_id', org.id);
+    if (error) { showToast(error.message, 'error'); return; }
+    showToast('Enterprise access granted.', 'ok');
+    closeSheet();
+    loadPlatformAdmin();
+  });
+}
+
+async function loadEnterpriseLeadsSection() {
+  const el = document.getElementById('platform-admin-leads');
+  const { data: leads, error } = await supabase.from('enterprise_leads').select('*').order('created_at', { ascending: false });
+  if (error) { el.innerHTML = `<div class="empty-state">${error.message}</div>`; return; }
+  if (!leads || !leads.length) { el.innerHTML = '<div class="empty-state">No leads yet.</div>'; return; }
+  const statusColors = { new: 'var(--blue)', contacted: 'var(--yellow)', closed: 'var(--green)' };
+  el.innerHTML = leads.map(l => `<div class="entityCard">
+    <div class="entityHead">
+      <div><b>${esc(l.contact_name)}</b><div class="muted">${esc(l.contact_email)}${l.academy_name ? ' · ' + esc(l.academy_name) : ''}</div></div>
+      <select class="lead-status-select" data-lead-id="${l.id}" style="width:auto; color:${statusColors[l.status] || 'inherit'};">
+        <option value="new" ${l.status === 'new' ? 'selected' : ''}>New</option>
+        <option value="contacted" ${l.status === 'contacted' ? 'selected' : ''}>Contacted</option>
+        <option value="closed" ${l.status === 'closed' ? 'selected' : ''}>Closed</option>
+      </select>
+    </div>
+    <div class="muted" style="margin-top:6px;">${[l.approx_players ? l.approx_players + ' players' : null, l.approx_teams ? l.approx_teams + ' teams' : null].filter(Boolean).join(' · ')}</div>
+    ${l.message ? `<div class="muted">${esc(l.message)}</div>` : ''}
+    <div class="muted" style="margin-top:4px;">${new Date(l.created_at).toLocaleString()}</div>
+  </div>`).join('');
+  el.querySelectorAll('.lead-status-select').forEach(sel => {
+    sel.addEventListener('change', async () => {
+      const { error: updateErr } = await supabase.from('enterprise_leads').update({ status: sel.value }).eq('id', sel.dataset.leadId);
+      if (updateErr) showToast(updateErr.message, 'error'); else showToast('Updated.', 'ok');
+    });
+  });
+}
+
 
 async function loadBranding() {
   const { data, error } = await supabase.from('organizations').select('name, logo_url, brand_color, report_footer').eq('id', currentOrgId).single();
