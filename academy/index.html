@@ -308,8 +308,8 @@
     <button class="btn" id="send-link-btn">Send sign-in link</button>
     <div class="status-msg" id="auth-status"></div>
     <div id="code-entry-section" style="display:none; margin-top:18px; padding-top:18px; border-top:1px solid var(--surface-border);">
-      <p style="margin-top:0;">Using Gmail's app? Links sometimes open in an in-app browser that won't sign you in. Enter the 6-digit code from the same email instead:</p>
-      <input type="text" inputmode="numeric" id="code-input" placeholder="123456" maxlength="6" autocomplete="one-time-code">
+      <p style="margin-top:0;">Using Gmail's app? Links sometimes open in an in-app browser that won't sign you in. Enter the code from the same email instead:</p>
+      <input type="text" inputmode="numeric" id="code-input" placeholder="Code from email" maxlength="10" autocomplete="one-time-code">
       <button class="btn ghost" id="verify-code-btn">Verify Code</button>
       <div class="status-msg" id="code-status"></div>
     </div>
@@ -999,7 +999,7 @@ const SUPABASE_URL = 'https://tjcrpnwmaadfcvdbthaz.supabase.co';
 // instead of silently staying stale. version.json must be redeployed
 // alongside this file on every future update, with a matching bump to
 // APP_BUILD_VERSION below — these two must always move together.
-const APP_BUILD_VERSION = '2026-08-24-19:34';
+const APP_BUILD_VERSION = '2026-08-24-20:07';
 async function checkForUpdate() {
   try {
     const res = await fetch('./version.json', { cache: 'no-store' });
@@ -1174,7 +1174,7 @@ document.getElementById('verify-code-btn').addEventListener('click', async () =>
   const token = document.getElementById('code-input').value.trim();
   const codeStatusEl = document.getElementById('code-status');
   if (!email) { codeStatusEl.textContent = 'Send the code first using the button above.'; codeStatusEl.className = 'status-msg error'; return; }
-  if (!token) { codeStatusEl.textContent = 'Enter the 6-digit code from your email.'; codeStatusEl.className = 'status-msg error'; return; }
+  if (!token) { codeStatusEl.textContent = 'Enter the code from your email.'; codeStatusEl.className = 'status-msg error'; return; }
   codeStatusEl.textContent = 'Verifying...'; codeStatusEl.className = 'status-msg';
   const { error } = await supabase.auth.verifyOtp({ email, token, type: 'email' });
   if (error) { codeStatusEl.textContent = error.message; codeStatusEl.className = 'status-msg error'; }
