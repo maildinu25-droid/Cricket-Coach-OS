@@ -361,6 +361,7 @@
       <div class="navGroupLabel">Resources</div>
       <button data-role-gate="assistant_coach" data-panel="panel-equipment"><span class="navIcon"><svg viewBox="0 0 21 21" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10.5 2.5l8 4.5v7l-8 4.5-8-4.5v-7z"/><polyline points="2.5,7 10.5,11.5 18.5,7"/><line x1="10.5" y1="11.5" x2="10.5" y2="19"/></svg></span>Equipment</button>
       <button data-role-gate="assistant_coach" data-panel="panel-facilities"><span class="navIcon"><svg viewBox="0 0 21 21" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10.5 18.5S3.5 12.3 3.5 8a7 7 0 0 1 14 0c0 4.3-7 10.5-7 10.5z"/><circle cx="10.5" cy="8" r="2.5"/></svg></span>Facilities</button>
+      <button data-role-gate="assistant_coach" data-panel="panel-fees"><span class="navIcon"><svg viewBox="0 0 21 21" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="5" width="16" height="11" rx="2"/><line x1="2.5" y1="9" x2="18.5" y2="9"/><line x1="5.5" y1="12.5" x2="9" y2="12.5"/></svg></span>Fees</button>
 
       <div class="navGroupLabel">Settings</div>
       <button data-panel="panel-members" data-role-gate="admin"><span class="navIcon"><svg viewBox="0 0 21 21" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="7" cy="7.5" r="3"/><circle cx="15" cy="8" r="2.5"/><path d="M2 18c0-3 2.2-5 5-5s5 2 5 5"/><path d="M12.5 13.3c2.3.3 3.9 2 3.9 4.7"/></svg></span>Members &amp; Roles</button>
@@ -727,6 +728,25 @@
       <div id="facilities-list"></div>
     </div>
 
+    <!-- FEES (fee tracking / recording only — no payment processing) -->
+    <div class="panel" id="panel-fees">
+      <h2>Fees</h2>
+      <p style="color:var(--text-dim); font-size:13px; margin-top:-8px;">Tracks who owes what and what's been recorded as paid. No money moves through the app — parents still pay however they already do, this just keeps the record straight.</p>
+      <div class="stats-grid" id="fees-stats" style="margin-bottom:14px;"></div>
+      <div class="panelToolbar">
+        <button class="btn primary" id="generate-invoice-btn">+ Generate Invoice(s)</button>
+        <button class="btn ghost" id="manage-fee-structures-btn" style="display:none;">Manage Fee Types</button>
+      </div>
+      <div class="filterCard">
+        <div class="formgrid">
+          <label>Search<input id="fees-search" placeholder="Player name..."></label>
+          <label>Status<select id="fees-status-filter"><option value="">All</option><option value="pending">Pending</option><option value="partially_paid">Partially Paid</option><option value="paid">Paid</option><option value="waived">Waived</option></select></label>
+        </div>
+      </div>
+      <div class="sectionHeading" id="fees-count">Invoices</div>
+      <div id="fees-list"></div>
+    </div>
+
     <!-- COACHES (head coach and above) -->
     <div class="panel" id="panel-coaches">
       <h2>Coaches</h2>
@@ -1008,7 +1028,7 @@ const SUPABASE_URL = 'https://tjcrpnwmaadfcvdbthaz.supabase.co';
 // instead of silently staying stale. version.json must be redeployed
 // alongside this file on every future update, with a matching bump to
 // APP_BUILD_VERSION below — these two must always move together.
-const APP_BUILD_VERSION = '2026-08-25-10:28';
+const APP_BUILD_VERSION = '2026-08-25-12:26';
 async function checkForUpdate() {
   try {
     const res = await fetch('./version.json', { cache: 'no-store' });
@@ -1150,7 +1170,7 @@ document.addEventListener('click', (e) => {
   btn._lastClick = now;
 }, true);
 
-const cache = { teams: [], players: [], drills: [], tournaments: [], seasons: [], sessions: [], matches: [], assessments: [], assessmentTemplates: [], analysisRecords: [], analysisToolLinks: [], savedReports: [], reflections: [], devPlans: [] };
+const cache = { teams: [], players: [], drills: [], tournaments: [], seasons: [], sessions: [], matches: [], assessments: [], assessmentTemplates: [], analysisRecords: [], analysisToolLinks: [], savedReports: [], reflections: [], devPlans: [], feeInvoices: [] };
 const editing = {}; // entity -> id currently being edited, or null
 
 function esc(str) { const d = document.createElement('div'); d.textContent = str ?? ''; return d.innerHTML; }
@@ -1459,7 +1479,7 @@ const panelLoaders = {
   'panel-sessions': loadSessions, 'panel-matches': loadMatches,
   'panel-assessments': loadAssessments, 'panel-analysis': loadAnalysis, 'panel-reflections': loadReflections,
   'panel-development': loadDevelopmentPanel, 'panel-testing': loadTestingPanel,
-  'panel-equipment': loadEquipment, 'panel-facilities': loadFacilities,
+  'panel-equipment': loadEquipment, 'panel-facilities': loadFacilities, 'panel-fees': loadFees,
   'panel-activity': loadActivity, 'panel-alerts': loadSmartAlerts, 'panel-reports': loadReportsPanel,
   'panel-coaches': loadCoachesPanel, 'panel-members': loadMembers, 'panel-profile': loadProfile,
   'panel-branding': loadBranding, 'panel-subscription': loadSubscription, 'panel-platform-admin': loadPlatformAdmin,
@@ -5674,6 +5694,181 @@ document.getElementById('save-facility-btn').addEventListener('click', async () 
   if (error) { showToast(error.message, 'error'); return; }
   document.getElementById('cancel-facility-btn').click();
   loadFacilities();
+});
+
+// ============================================================
+// FEES — recording only, no payment processing. Invoice status is
+// always derived server-side from actual payments (see
+// update_invoice_status trigger) — this code never sets status
+// directly except when marking an invoice waived.
+// ============================================================
+async function loadFees() {
+  if (!cache.players.length) await loadPlayers();
+  document.getElementById('manage-fee-structures-btn').style.display = roleAtLeast('admin') ? '' : 'none';
+
+  const { data: invoices, error } = await supabase.from('fee_invoices').select('*').eq('org_id', currentOrgId).order('created_at', { ascending: false });
+  if (error) { reportError(error, 'Fees'); return; }
+  cache.feeInvoices = invoices || [];
+
+  const totalOutstanding = cache.feeInvoices.filter(i => i.status !== 'paid' && i.status !== 'waived').reduce((s, i) => s + i.amount_cents, 0);
+  const totalCollected = cache.feeInvoices.reduce((s, i) => s + i.amount_cents, 0) - totalOutstanding;
+  const overdueCount = cache.feeInvoices.filter(i => i.status !== 'paid' && i.status !== 'waived' && i.due_date && i.due_date < new Date().toISOString().slice(0, 10)).length;
+  document.getElementById('fees-stats').innerHTML = `
+    <div class="stat-card"><div class="num">${money(totalOutstanding, 'INR')}</div><div class="label">Outstanding</div></div>
+    <div class="stat-card"><div class="num">${money(totalCollected, 'INR')}</div><div class="label">Collected</div></div>
+    <div class="stat-card"><div class="num" style="${overdueCount ? 'color:var(--danger);' : ''}">${overdueCount}</div><div class="label">Overdue</div></div>`;
+
+  renderFeesList();
+}
+function renderFeesList() {
+  const listEl = document.getElementById('fees-list');
+  const search = document.getElementById('fees-search').value.trim().toLowerCase();
+  const statusFilter = document.getElementById('fees-status-filter').value;
+  const today = new Date().toISOString().slice(0, 10);
+  let rows = cache.feeInvoices.filter(i => {
+    if (statusFilter && i.status !== statusFilter) return false;
+    if (search && !nameById(cache.players, i.player_id).toLowerCase().includes(search)) return false;
+    return true;
+  });
+  document.getElementById('fees-count').textContent = `Invoices (${rows.length})`;
+  if (!rows.length) { listEl.innerHTML = '<div class="empty-state">No invoices match.</div>'; return; }
+  const statusLabels = { pending: 'Pending', partially_paid: 'Partially Paid', paid: 'Paid', waived: 'Waived' };
+  listEl.innerHTML = rows.map(i => {
+    const isOverdue = i.status !== 'paid' && i.status !== 'waived' && i.due_date && i.due_date < today;
+    return `<div class="itemCard">
+      <div class="itemMain">
+        <b>${esc(nameById(cache.players, i.player_id))}</b> <span class="muted">${esc(i.description)}${i.period_label ? ' · ' + esc(i.period_label) : ''}</span>
+        <div class="muted" style="margin-top:4px;">${money(i.amount_cents, 'INR')}${i.due_date ? ' · Due ' + esc(i.due_date) : ''}</div>
+      </div>
+      <span class="tagPill" style="${isOverdue ? 'background:var(--danger-tint); color:var(--danger);' : ''}">${isOverdue ? 'Overdue' : esc(statusLabels[i.status])}</span>
+      ${i.status !== 'paid' && i.status !== 'waived' ? `<button type="button" class="btn ghost" data-record-payment="${i.id}" style="width:auto; margin-top:8px;">Record Payment</button>` : ''}
+    </div>`;
+  }).join('');
+  listEl.querySelectorAll('[data-record-payment]').forEach(btn => btn.onclick = () => openRecordPaymentSheet(cache.feeInvoices.find(i => i.id === btn.dataset.recordPayment)));
+}
+document.getElementById('fees-search').addEventListener('input', renderFeesList);
+document.getElementById('fees-status-filter').addEventListener('change', renderFeesList);
+
+function openRecordPaymentSheet(invoice) {
+  openSheet(sheetHead(`Record Payment — ${esc(nameById(cache.players, invoice.player_id))}`) + `
+    <p style="color:var(--text-dim); font-size:13px; margin-top:0;">${esc(invoice.description)} · ${money(invoice.amount_cents, 'INR')} total</p>
+    <div class="formgrid">
+      <label>Amount received (₹)<input type="number" id="payment-amount" value="${(invoice.amount_cents / 100).toFixed(0)}"></label>
+      <label>Date<input type="date" id="payment-date" value="${new Date().toISOString().slice(0, 10)}"></label>
+      <label>Method<select id="payment-method"><option value="cash">Cash</option><option value="bank_transfer">Bank Transfer</option><option value="upi">UPI</option><option value="cheque">Cheque</option><option value="other">Other</option></select></label>
+      <label class="full">Notes <span class="muted" style="font-weight:400;">(optional)</span><textarea id="payment-notes"></textarea></label>
+    </div>
+    <div class="panelToolbar">
+      <button class="btn primary" id="save-payment-btn" style="width:auto;">Save Payment</button>
+      <button class="btn ghost" id="waive-invoice-btn" style="width:auto;">Waive Invoice</button>
+    </div>`);
+  document.getElementById('save-payment-btn').addEventListener('click', async () => {
+    const amountCents = Math.round(parseFloat(document.getElementById('payment-amount').value || '0') * 100);
+    if (!amountCents || amountCents <= 0) { showToast('Enter a valid amount.', 'error'); return; }
+    const { error } = await supabase.from('fee_payments').insert({
+      org_id: currentOrgId, invoice_id: invoice.id, amount_cents: amountCents,
+      paid_date: document.getElementById('payment-date').value, payment_method: document.getElementById('payment-method').value,
+      recorded_by: session.user.id, notes: document.getElementById('payment-notes').value.trim() || null,
+    });
+    if (error) { showToast(error.message, 'error'); return; }
+    showToast('Payment recorded.', 'ok');
+    closeSheet();
+    loadFees();
+  });
+  document.getElementById('waive-invoice-btn').addEventListener('click', async () => {
+    if (!confirm('Waive this invoice? It will no longer count toward outstanding fees.')) return;
+    const { error } = await supabase.from('fee_invoices').update({ status: 'waived' }).eq('id', invoice.id);
+    if (error) { showToast(error.message, 'error'); return; }
+    showToast('Invoice waived.', 'ok');
+    closeSheet();
+    loadFees();
+  });
+}
+
+async function openGenerateInvoiceSheet() {
+  const { data: structures, error } = await supabase.from('fee_structures').select('*').eq('org_id', currentOrgId).eq('is_active', true).order('name');
+  if (error) { showToast(error.message, 'error'); return; }
+  if (!cache.teams.length) await loadTeams();
+  openSheet(sheetHead('Generate Invoice(s)') + `
+    <div class="formgrid">
+      <label class="full">Fee type<select id="invoice-structure">${structures.map(s => `<option value="${s.id}" data-amount="${s.amount_cents}" data-team="${s.team_id || ''}">${esc(s.name)} — ${money(s.amount_cents, 'INR')}</option>`).join('') || '<option value="">No fee types defined yet</option>'}</select></label>
+      <label>Apply to<select id="invoice-target"><option value="team">Whole team</option><option value="player">One player</option></select></label>
+      <label id="invoice-team-wrap">Team<select id="invoice-team">${cache.teams.map(t => `<option value="${t.id}">${esc(t.name)}</option>`).join('')}</select></label>
+      <label id="invoice-player-wrap" style="display:none;">Player<select id="invoice-player">${cache.players.map(p => `<option value="${p.id}">${esc(p.name)}</option>`).join('')}</select></label>
+      <label>Period label <span class="muted" style="font-weight:400;">(e.g. "August 2026")</span><input id="invoice-period"></label>
+      <label>Due date <span class="muted" style="font-weight:400;">(optional)</span><input type="date" id="invoice-due-date"></label>
+    </div>
+    <button class="btn primary" id="save-invoice-btn" style="margin-top:14px; width:auto;">Generate</button>`);
+  document.getElementById('invoice-target').addEventListener('change', (e) => {
+    document.getElementById('invoice-team-wrap').style.display = e.target.value === 'team' ? '' : 'none';
+    document.getElementById('invoice-player-wrap').style.display = e.target.value === 'player' ? '' : 'none';
+  });
+  document.getElementById('save-invoice-btn').addEventListener('click', async () => {
+    const structureSelect = document.getElementById('invoice-structure');
+    const structureId = structureSelect.value;
+    if (!structureId) { showToast('No fee type selected.', 'error'); return; }
+    const opt = structureSelect.selectedOptions[0];
+    const amountCents = parseInt(opt.dataset.amount, 10);
+    const structureName = opt.textContent.split(' — ')[0];
+    const periodLabel = document.getElementById('invoice-period').value.trim() || null;
+    const dueDate = document.getElementById('invoice-due-date').value || null;
+    const target = document.getElementById('invoice-target').value;
+    const playerIds = target === 'player'
+      ? [document.getElementById('invoice-player').value]
+      : cache.players.filter(p => p.team_id === document.getElementById('invoice-team').value).map(p => p.id);
+    if (!playerIds.length) { showToast('No players to invoice.', 'error'); return; }
+    const rows = playerIds.map(pid => ({
+      org_id: currentOrgId, player_id: pid, fee_structure_id: structureId, description: structureName,
+      amount_cents: amountCents, due_date: dueDate, period_label: periodLabel, created_by: session.user.id,
+    }));
+    const { error: insertErr } = await supabase.from('fee_invoices').insert(rows);
+    if (insertErr) { showToast(insertErr.message, 'error'); return; }
+    showToast(`${rows.length} invoice${rows.length === 1 ? '' : 's'} generated.`, 'ok');
+    closeSheet();
+    loadFees();
+  });
+}
+document.getElementById('generate-invoice-btn').addEventListener('click', openGenerateInvoiceSheet);
+
+async function openFeeStructuresSheet() {
+  const { data: structures, error } = await supabase.from('fee_structures').select('*').eq('org_id', currentOrgId).order('created_at', { ascending: false });
+  if (error) { showToast(error.message, 'error'); return; }
+  const freqLabels = { one_time: 'One-time', monthly: 'Monthly', quarterly: 'Quarterly', annual: 'Annual' };
+  openSheet(sheetHead('Manage Fee Types') + `
+    <div id="fee-structures-list">${(structures || []).map(s => `<div class="list-item"><span>${esc(s.name)} — ${money(s.amount_cents, 'INR')} <span class="muted">(${freqLabels[s.frequency]})</span></span><button type="button" class="btn ghost" data-delete-structure="${s.id}" style="width:auto;">Remove</button></div>`).join('') || '<div class="empty-state">No fee types yet.</div>'}</div>
+    <div class="sectionHeading">Add a fee type</div>
+    <div class="formgrid">
+      <label class="full">Name<input id="new-structure-name" placeholder="e.g. Monthly Tuition"></label>
+      <label>Amount (₹)<input type="number" id="new-structure-amount"></label>
+      <label>Frequency<select id="new-structure-frequency"><option value="monthly">Monthly</option><option value="quarterly">Quarterly</option><option value="annual">Annual</option><option value="one_time">One-time</option></select></label>
+      <label class="full">Applies to <span class="muted" style="font-weight:400;">(optional — leave blank for whole academy)</span><select id="new-structure-team"><option value="">Whole academy</option>${cache.teams.map(t => `<option value="${t.id}">${esc(t.name)}</option>`).join('')}</select></label>
+    </div>
+    <button class="btn primary" id="add-structure-btn" style="margin-top:10px; width:auto;">Add</button>`);
+  document.getElementById('fee-structures-list').querySelectorAll('[data-delete-structure]').forEach(btn => {
+    btn.onclick = async () => {
+      if (!confirm('Remove this fee type? Existing invoices already generated from it are unaffected.')) return;
+      const { error: delErr } = await supabase.from('fee_structures').delete().eq('id', btn.dataset.deleteStructure);
+      if (delErr) { showToast(delErr.message, 'error'); return; }
+      openFeeStructuresSheet();
+    };
+  });
+  document.getElementById('add-structure-btn').addEventListener('click', async () => {
+    const name = document.getElementById('new-structure-name').value.trim();
+    const amountCents = Math.round(parseFloat(document.getElementById('new-structure-amount').value || '0') * 100);
+    if (!name || !amountCents) { showToast('Name and amount are required.', 'error'); return; }
+    const { error: insertErr } = await supabase.from('fee_structures').insert({
+      org_id: currentOrgId, name, amount_cents: amountCents,
+      frequency: document.getElementById('new-structure-frequency').value,
+      team_id: document.getElementById('new-structure-team').value || null,
+    });
+    if (insertErr) { showToast(insertErr.message, 'error'); return; }
+    showToast('Fee type added.', 'ok');
+    openFeeStructuresSheet();
+  });
+}
+document.getElementById('manage-fee-structures-btn').addEventListener('click', async () => {
+  if (!cache.teams.length) await loadTeams();
+  openFeeStructuresSheet();
 });
 
 // ============================================================
