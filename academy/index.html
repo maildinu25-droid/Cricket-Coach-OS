@@ -999,7 +999,7 @@ const SUPABASE_URL = 'https://tjcrpnwmaadfcvdbthaz.supabase.co';
 // instead of silently staying stale. version.json must be redeployed
 // alongside this file on every future update, with a matching bump to
 // APP_BUILD_VERSION below — these two must always move together.
-const APP_BUILD_VERSION = '2026-08-24-20:17';
+const APP_BUILD_VERSION = '2026-08-25-02:24';
 async function checkForUpdate() {
   try {
     const res = await fetch('./version.json', { cache: 'no-store' });
@@ -1208,6 +1208,19 @@ async function boot() {
   document.getElementById('app-shell').classList.add('active');
   document.querySelectorAll('[data-platform-admin-only]').forEach(el => { el.style.display = isPlatformAdmin ? '' : 'none'; });
   if (memberships.length === 0) {
+    // The normal role-gating pass lives inside applyOrgContext(), which
+    // we're about to skip entirely — so every org-scoped nav item needs
+    // to be hidden explicitly here, or it stays in its raw HTML-visible
+    // state with no org context behind it at all.
+    document.querySelectorAll('[data-role-gate]').forEach(el => { el.style.display = 'none'; });
+    document.querySelectorAll('.navGroupLabel').forEach(label => {
+      let el = label.nextElementSibling, anyVisible = false;
+      while (el && !el.classList.contains('navGroupLabel')) {
+        if (el.style.display !== 'none') anyVisible = true;
+        el = el.nextElementSibling;
+      }
+      label.style.display = anyVisible ? '' : 'none';
+    });
     if (isPlatformAdmin) { showOnlyPanel('panel-platform-admin', { skipHistory: true }); loadPlatformAdmin(); return; }
     showOnlyPanel('panel-create-org'); return;
   }
