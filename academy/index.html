@@ -812,12 +812,6 @@
         <button class="btn small danger" id="leave-org-btn">Leave organization</button>
         <div class="status-msg" id="leave-org-status"></div>
       </div>
-      <div class="form-card" style="max-width:420px;">
-        <label class="field-label" style="margin-top:0;">Diagnostic: Boot Log <span class="muted" style="font-weight:400;">(temporary, for troubleshooting the refresh issue)</span></label>
-        <div id="boot-log-view" style="font-family:monospace; font-size:11.5px; white-space:pre-wrap; color:var(--text-dim); max-height:220px; overflow:auto; background:var(--navy); border-radius:8px; padding:8px;"></div>
-        <button class="btn small ghost" id="refresh-boot-log-btn" style="margin-top:8px;">Refresh</button>
-        <button class="btn small ghost" id="clear-boot-log-btn" style="margin-top:8px;">Clear</button>
-      </div>
     </div>
 
     <!-- REPORTS (head coach and above, org-wide aggregation) -->
@@ -1014,7 +1008,7 @@ const SUPABASE_URL = 'https://tjcrpnwmaadfcvdbthaz.supabase.co';
 // instead of silently staying stale. version.json must be redeployed
 // alongside this file on every future update, with a matching bump to
 // APP_BUILD_VERSION below — these two must always move together.
-const APP_BUILD_VERSION = '2026-08-25-08:09';
+const APP_BUILD_VERSION = '2026-08-25-10:28';
 async function checkForUpdate() {
   try {
     const res = await fetch('./version.json', { cache: 'no-store' });
@@ -1198,24 +1192,6 @@ document.getElementById('verify-code-btn').addEventListener('click', async () =>
 
 document.getElementById('logout-btn').addEventListener('click', async () => { await supabase.auth.signOut(); window.location.reload(); });
 
-function renderBootLog() {
-  const el = document.getElementById('boot-log-view');
-  if (!el) return;
-  let log = [];
-  try { log = JSON.parse(localStorage.getItem('academy_boot_log') || '[]'); } catch (e) {}
-  el.textContent = log.length ? log.join('\n') : '(empty — nothing logged yet)';
-}
-document.getElementById('refresh-boot-log-btn')?.addEventListener('click', renderBootLog);
-document.getElementById('clear-boot-log-btn')?.addEventListener('click', () => { localStorage.removeItem('academy_boot_log'); renderBootLog(); });
-
-function logBootEvent(reason) {
-  try {
-    const log = JSON.parse(localStorage.getItem('academy_boot_log') || '[]');
-    log.push(`${new Date().toLocaleTimeString()} — ${reason} — visibility:${document.visibilityState}`);
-    while (log.length > 15) log.shift();
-    localStorage.setItem('academy_boot_log', JSON.stringify(log));
-  } catch (e) { /* diagnostic only, never let this break anything */ }
-}
 supabase.auth.onAuthStateChange((event, sess) => {
   session = sess;
   // TOKEN_REFRESHED fires automatically from a background process
@@ -1225,8 +1201,7 @@ supabase.auth.onAuthStateChange((event, sess) => {
   // reload its data each time someone swapped apps and came back,
   // which felt like an unwanted page refresh. USER_UPDATED (e.g.
   // after changing a display name) doesn't need a full reboot either.
-  if (event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') { logBootEvent(`${event} (skipped)`); return; }
-  logBootEvent(`${event} (booting)`);
+  if (event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') return;
   if (session) boot(); else showAuthScreen();
 });
 
@@ -3379,7 +3354,7 @@ function sessionFormHtml(s) {
       <label>Primary focus<select id="sheet-session-focus">${SESSION_FOCUS_OPTIONS.map(f => `<option ${s?.focus === f ? 'selected' : ''}>${f}</option>`).join('')}</select></label>
       <label class="full">Venue<input id="sheet-session-venue" value="${esc(s?.venue || '')}"></label>
     </div>
-    <label class="field-label" style="margin-top:10px;">Attendance</label>
+    <label class="field-label" style="margin-top:10px; display:flex; justify-content:space-between; align-items:center;">Attendance<button type="button" class="btn ghost" id="mark-all-present-btn" style="width:auto; padding:4px 10px; font-size:12px;">Mark All Present</button></label>
     <div id="sheet-session-attendees">${attendanceRowsHtml(teamPlayers, s?.attendance)}</div>
     <label class="full" style="margin-top:10px; display:block;">Objectives<textarea id="sheet-session-objectives">${esc(s?.objectives || '')}</textarea></label>
     <label class="full" style="display:block;">Warm-up / Preparation<textarea id="sheet-session-warmup">${esc(s?.warmup || '')}</textarea></label>
@@ -3400,6 +3375,9 @@ function openSessionForm(s) {
   document.getElementById('sheet-session-team').addEventListener('change', (e) => {
     const teamPlayers = cache.players.filter(p => p.team_id === e.target.value);
     document.getElementById('sheet-session-attendees').innerHTML = attendanceRowsHtml(teamPlayers, null);
+  });
+  document.getElementById('mark-all-present-btn').addEventListener('click', () => {
+    document.querySelectorAll('.attendance-status').forEach(sel => { sel.value = 'present'; });
   });
   document.getElementById('sheet-save-session-btn').addEventListener('click', async () => {
     const teamId = document.getElementById('sheet-session-team').value;
@@ -4739,7 +4717,6 @@ async function loadProfile() {
   if (error) { document.getElementById('profile-status').textContent = error.message; document.getElementById('profile-status').className = 'status-msg error'; return; }
   document.getElementById('profile-display-name').value = data.display_name || '';
   document.getElementById('profile-email').value = data.email || session.user.email || '';
-  renderBootLog();
 }
 document.getElementById('save-profile-btn').addEventListener('click', async () => {
   const displayName = document.getElementById('profile-display-name').value.trim();
