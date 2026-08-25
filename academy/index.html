@@ -1008,7 +1008,7 @@ const SUPABASE_URL = 'https://tjcrpnwmaadfcvdbthaz.supabase.co';
 // instead of silently staying stale. version.json must be redeployed
 // alongside this file on every future update, with a matching bump to
 // APP_BUILD_VERSION below — these two must always move together.
-const APP_BUILD_VERSION = '2026-08-25-07:22';
+const APP_BUILD_VERSION = '2026-08-25-07:37';
 async function checkForUpdate() {
   try {
     const res = await fetch('./version.json', { cache: 'no-store' });
@@ -1192,7 +1192,18 @@ document.getElementById('verify-code-btn').addEventListener('click', async () =>
 
 document.getElementById('logout-btn').addEventListener('click', async () => { await supabase.auth.signOut(); window.location.reload(); });
 
-supabase.auth.onAuthStateChange((_e, sess) => { session = sess; if (session) boot(); else showAuthScreen(); });
+supabase.auth.onAuthStateChange((event, sess) => {
+  session = sess;
+  // TOKEN_REFRESHED fires automatically from a background process
+  // whenever a tab regains focus/visibility, to keep the session
+  // valid — it does NOT mean the user signed in again. Re-running the
+  // full boot sequence for it forced every currently-open panel to
+  // reload its data each time someone swapped apps and came back,
+  // which felt like an unwanted page refresh. USER_UPDATED (e.g.
+  // after changing a display name) doesn't need a full reboot either.
+  if (event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') return;
+  if (session) boot(); else showAuthScreen();
+});
 
 function showAuthScreen() {
   document.getElementById('auth-screen').style.display = 'flex';
