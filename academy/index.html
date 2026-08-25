@@ -866,6 +866,7 @@
           </optgroup>
           <optgroup label="Resources">
             <option value="equipment-facilities">Equipment &amp; facilities</option>
+            <option value="fees-report">Fees &amp; outstanding balances</option>
           </optgroup>
         </select>
 
@@ -1028,7 +1029,7 @@ const SUPABASE_URL = 'https://tjcrpnwmaadfcvdbthaz.supabase.co';
 // instead of silently staying stale. version.json must be redeployed
 // alongside this file on every future update, with a matching bump to
 // APP_BUILD_VERSION below — these two must always move together.
-const APP_BUILD_VERSION = '2026-08-25-12:26';
+const APP_BUILD_VERSION = '2026-08-25-12:41';
 async function checkForUpdate() {
   try {
     const res = await fetch('./version.json', { cache: 'no-store' });
@@ -1621,6 +1622,7 @@ const PULSE_METRIC_DEFS = [
   { key: 'new_joins', label: 'New players this month' },
   { key: 'inactive_players', label: 'Inactive players' },
   { key: 'pending_reflections', label: 'Pending reflections' },
+  { key: 'outstanding_fees', label: 'Outstanding fees' },
 ];
 document.getElementById('customize-pulse-btn').addEventListener('click', async () => {
   const { data: profileRow } = await supabase.from('profiles').select('dashboard_pulse_metrics').eq('id', session.user.id).maybeSingle();
@@ -1730,6 +1732,9 @@ async function loadDashboard() {
   const pastSessionCount = pastSessionIds.size;
   const reflectionPct = pastSessionCount ? Math.round((reflectedIds.size / pastSessionCount) * 100) : null;
 
+  const { data: feeInvoicesForPulse } = await supabase.from('fee_invoices').select('amount_cents, status').eq('org_id', currentOrgId);
+  const outstandingFeesCents = (feeInvoicesForPulse || []).filter(i => i.status !== 'paid' && i.status !== 'waived').reduce((s, i) => s + i.amount_cents, 0);
+
   window.PULSE_METRIC_LIBRARY = {
     attendance_30d: attendancePct !== null ? { label: 'Attendance (30d)', value: attendancePct + '%', sev: attendancePct >= 85 ? 'green' : attendancePct >= 60 ? 'yellow' : 'red' } : null,
     reflections: reflectionPct !== null ? { label: 'Reflections completed', value: reflectionPct + '%', sev: reflectionPct >= 85 ? 'green' : reflectionPct >= 60 ? 'yellow' : 'red' } : null,
@@ -1739,6 +1744,7 @@ async function loadDashboard() {
     new_joins: { label: 'New players this month', value: String(netJoins), sev: 'green' },
     inactive_players: { label: 'Inactive players', value: String(inactiveTotal), sev: inactiveTotal === 0 ? 'green' : 'yellow' },
     pending_reflections: { label: 'Pending reflections', value: String(pendingReflections), sev: pendingReflections === 0 ? 'green' : pendingReflections <= 3 ? 'yellow' : 'red' },
+    outstanding_fees: { label: 'Outstanding fees', value: money(outstandingFeesCents, 'INR'), sev: outstandingFeesCents === 0 ? 'green' : 'yellow' },
   };
   const DEFAULT_PULSE_METRICS = ['attendance_30d', 'reflections', 'assessments_overdue', 'dev_reviews_due'];
   const { data: profileRow } = await supabase.from('profiles').select('dashboard_pulse_metrics').eq('id', session.user.id).maybeSingle();
@@ -4699,10 +4705,11 @@ async function loadMyDevelopment() {
 async function renderMyDevelopmentFor(player) {
   const contentEl = document.getElementById('my-development-content');
   contentEl.innerHTML = '<div class="empty-state">Loading...</div>';
-  const [assessRes, plansRes, toolStatsRes] = await Promise.all([
+  const [assessRes, plansRes, toolStatsRes, feesRes] = await Promise.all([
     supabase.from('assessments').select('date, ratings, disciplines, priority, comments').eq('player_id', player.id).order('date', { ascending: false }),
     supabase.from('development_plans').select('id, goal, deadline, status, created_at').eq('player_id', player.id).order('created_at', { ascending: false }),
     supabase.from('analysis_tool_stats').select('tool_type, session_date, stats').eq('player_id', player.id).order('session_date', { ascending: false }),
+    supabase.from('fee_invoices').select('description, amount_cents, status, due_date, period_label').eq('player_id', player.id).order('created_at', { ascending: false }),
   ]);
   const TOOL_TYPE_LABELS = { pitchmap: 'Pitch Map', battingmap: 'Batting Map', livesession: 'Live Session' };
   let html = '<div class="sectionHeading" style="margin-top:0;">Development goals</div>';
@@ -4727,6 +4734,15 @@ async function renderMyDevelopmentFor(player) {
       const s = r.stats || {};
       const parts = [s.balls != null ? s.balls + ' balls' : null, s.runs != null ? s.runs + ' runs' : null, s.wickets ? s.wickets + ' wkt' + (s.wickets === 1 ? '' : 's') : null, s.economy != null ? 'econ ' + s.economy : null, s.strikeRate != null ? 'SR ' + s.strikeRate : null].filter(Boolean).join(' · ');
       html += `<div class="itemCard"><div class="itemMain"><b>${esc(TOOL_TYPE_LABELS[r.tool_type] || r.tool_type)}</b><div class="muted">${esc(r.session_date)} · ${esc(parts)}</div></div></div>`;
+    }
+  }
+  html += '<div class="sectionHeading">Fees</div>';
+  if (!feesRes.data || !feesRes.data.length) html += '<div class="empty-state">No fees on record.</div>';
+  else {
+    const feeStatusLabels = { pending: 'Pending', partially_paid: 'Partially Paid', paid: 'Paid', waived: 'Waived' };
+    for (const f of feesRes.data) {
+      const isOverdue = f.status !== 'paid' && f.status !== 'waived' && f.due_date && f.due_date < new Date().toISOString().slice(0, 10);
+      html += `<div class="itemCard"><div class="itemMain"><b>${esc(f.description)}${f.period_label ? ' — ' + esc(f.period_label) : ''}</b><div class="muted">${money(f.amount_cents, 'INR')} · <span style="${isOverdue ? 'color:var(--danger);' : ''}">${isOverdue ? 'Overdue' : esc(feeStatusLabels[f.status])}</span>${f.due_date ? ' · Due ' + esc(f.due_date) : ''}</div></div></div>`;
     }
   }
   contentEl.innerHTML = html;
@@ -4796,7 +4812,7 @@ const REPORT_CONTROLS = {
   'match-results': { daterange: true, team: true }, 'match-report': { match: true },
   'tournament-report': { tournament: true }, 'season-analytics': { season: true },
   'session-report': { daterange: true, team: true }, 'monthly-coaching': { month: true, team: true },
-  'coach-development': { daterange: true }, 'equipment-facilities': {},
+  'coach-development': { daterange: true }, 'equipment-facilities': {}, 'fees-report': {},
 };
 function updateReportControlVisibility() {
   const cfg = REPORT_CONTROLS[document.getElementById('report-type').value] || {};
@@ -4845,7 +4861,7 @@ document.getElementById('run-report-btn').addEventListener('click', async () => 
     'match-results': runMatchResultsReport, 'match-report': runMatchReport,
     'tournament-report': runTournamentReport, 'season-analytics': runSeasonAnalyticsReport,
     'session-report': runSessionReport, 'monthly-coaching': runMonthlyCoachingReport,
-    'coach-development': runCoachDevelopmentReport, 'equipment-facilities': runEquipmentFacilitiesReport,
+    'coach-development': runCoachDevelopmentReport, 'equipment-facilities': runEquipmentFacilitiesReport, 'fees-report': runFeesReport,
   };
   const fn = runners[document.getElementById('report-type').value];
   if (!fn) return;
@@ -5259,6 +5275,47 @@ async function runEquipmentFacilitiesReport() {
   html += '<h3 style="margin-top:16px;">Facilities</h3>';
   if (!facilities.length) html += '<div class="empty-state">No facilities recorded yet.</div>';
   else html += facilities.map(f => `<div class="itemCard"><div class="itemMain"><b>${esc(f.name)}</b><div class="muted">${esc(f.type || '—')}${f.capacity ? ' · Capacity ' + esc(f.capacity) : ''}</div>${f.availability_notes ? `<small>Availability: ${esc(f.availability_notes)}</small>` : ''}${f.maintenance_notes ? `<small>Maintenance: ${esc(f.maintenance_notes)}</small>` : ''}</div></div>`).join('');
+
+  outputEl.innerHTML = html;
+}
+
+async function runFeesReport() {
+  const outputEl = document.getElementById('report-output');
+  outputEl.innerHTML = '<div class="empty-state">Generating...</div>';
+  if (!cache.players.length) await loadPlayers();
+
+  const { data: invoices, error } = await supabase.from('fee_invoices').select('*').eq('org_id', currentOrgId).order('created_at', { ascending: false });
+  if (error) { reportError(error, 'Fees Report'); outputEl.innerHTML = '<div class="empty-state">Could not load.</div>'; return; }
+
+  const today = new Date().toISOString().slice(0, 10);
+  const outstanding = (invoices || []).filter(i => i.status !== 'paid' && i.status !== 'waived');
+  const overdue = outstanding.filter(i => i.due_date && i.due_date < today);
+  const totalOutstanding = outstanding.reduce((s, i) => s + i.amount_cents, 0);
+  const totalCollected = (invoices || []).reduce((s, i) => s + i.amount_cents, 0) - totalOutstanding;
+  const statusLabels = { pending: 'Pending', partially_paid: 'Partially Paid', paid: 'Paid', waived: 'Waived' };
+
+  let html = '<div class="stats-grid" style="margin-bottom:16px;">';
+  html += `<div class="stat-card"><div class="num">${money(totalOutstanding, 'INR')}</div><div class="label">Outstanding</div></div>`;
+  html += `<div class="stat-card"><div class="num">${money(totalCollected, 'INR')}</div><div class="label">Collected</div></div>`;
+  html += `<div class="stat-card"><div class="num" style="${overdue.length ? 'color:var(--danger);' : ''}">${overdue.length}</div><div class="label">Overdue</div></div>`;
+  html += `<div class="stat-card"><div class="num">${(invoices || []).length}</div><div class="label">Total invoices</div></div>`;
+  html += '</div>';
+
+  if (overdue.length) {
+    html += '<h3>Overdue</h3>';
+    html += overdue.map(i => `<div class="list-item"><span>${esc(nameById(cache.players, i.player_id))} — ${esc(i.description)}${i.period_label ? ' (' + esc(i.period_label) + ')' : ''}</span><span class="role-tag" style="color:var(--danger);">${money(i.amount_cents, 'INR')} · Due ${esc(i.due_date)}</span></div>`).join('');
+  }
+
+  const otherOutstanding = outstanding.filter(i => !(i.due_date && i.due_date < today));
+  if (otherOutstanding.length) {
+    html += '<h3 style="margin-top:16px;">Outstanding (not yet due)</h3>';
+    html += otherOutstanding.map(i => `<div class="list-item"><span>${esc(nameById(cache.players, i.player_id))} — ${esc(i.description)}${i.period_label ? ' (' + esc(i.period_label) + ')' : ''}</span><span class="role-tag">${money(i.amount_cents, 'INR')} · ${esc(statusLabels[i.status])}</span></div>`).join('');
+  }
+
+  const paidOrWaived = (invoices || []).filter(i => i.status === 'paid' || i.status === 'waived');
+  html += `<h3 style="margin-top:16px;">Paid / Waived (${paidOrWaived.length})</h3>`;
+  if (!paidOrWaived.length) html += '<div class="empty-state">None yet.</div>';
+  else html += paidOrWaived.slice(0, 30).map(i => `<div class="list-item"><span>${esc(nameById(cache.players, i.player_id))} — ${esc(i.description)}${i.period_label ? ' (' + esc(i.period_label) + ')' : ''}</span><span class="role-tag">${money(i.amount_cents, 'INR')} · ${esc(statusLabels[i.status])}</span></div>`).join('');
 
   outputEl.innerHTML = html;
 }
@@ -5795,7 +5852,7 @@ async function openGenerateInvoiceSheet() {
       <label>Apply to<select id="invoice-target"><option value="team">Whole team</option><option value="player">One player</option></select></label>
       <label id="invoice-team-wrap">Team<select id="invoice-team">${cache.teams.map(t => `<option value="${t.id}">${esc(t.name)}</option>`).join('')}</select></label>
       <label id="invoice-player-wrap" style="display:none;">Player<select id="invoice-player">${cache.players.map(p => `<option value="${p.id}">${esc(p.name)}</option>`).join('')}</select></label>
-      <label>Period label <span class="muted" style="font-weight:400;">(e.g. "August 2026")</span><input id="invoice-period"></label>
+      <label>Period <span class="muted" style="font-weight:400;">(optional — e.g. a specific month)</span><input type="month" id="invoice-period"></label>
       <label>Due date <span class="muted" style="font-weight:400;">(optional)</span><input type="date" id="invoice-due-date"></label>
     </div>
     <button class="btn primary" id="save-invoice-btn" style="margin-top:14px; width:auto;">Generate</button>`);
@@ -5810,7 +5867,8 @@ async function openGenerateInvoiceSheet() {
     const opt = structureSelect.selectedOptions[0];
     const amountCents = parseInt(opt.dataset.amount, 10);
     const structureName = opt.textContent.split(' — ')[0];
-    const periodLabel = document.getElementById('invoice-period').value.trim() || null;
+    const periodRaw = document.getElementById('invoice-period').value;
+    const periodLabel = periodRaw ? new Date(periodRaw + '-02').toLocaleDateString(undefined, { month: 'long', year: 'numeric' }) : null;
     const dueDate = document.getElementById('invoice-due-date').value || null;
     const target = document.getElementById('invoice-target').value;
     const playerIds = target === 'player'
