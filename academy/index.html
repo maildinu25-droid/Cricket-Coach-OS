@@ -383,7 +383,7 @@
     <div class="panel active" id="panel-dashboard">
       <div id="dashboard-header"></div>
       <div class="homeSection" style="margin-top:0;">
-        <div class="homeSectionTitle">Academy Pulse</div>
+        <div class="homeSectionTitle" style="display:flex; justify-content:space-between; align-items:center;">Academy Pulse<button type="button" class="btn ghost" id="customize-pulse-btn" style="width:auto; padding:4px 10px; font-size:12px;">Customize</button></div>
         <div id="academy-pulse" class="card" style="background:var(--navy-2); border:1px solid var(--surface-border); border-radius:var(--radius); padding:16px; box-shadow:var(--shadow);"></div>
       </div>
       <div class="bentoGrid" id="dashboard-bento"></div>
@@ -427,7 +427,10 @@
       <div class="panelToolbar">
         <button class="btn ghost" id="calendar-view-grid-btn">Month view</button>
         <button class="btn ghost" id="calendar-view-agenda-btn">Agenda view</button>
+        <button class="btn ghost" id="calendar-export-ics-btn">Export to Calendar (.ics)</button>
       </div>
+      <div class="sectionHeading" style="margin-top:14px;">Next 7 Days</div>
+      <div id="calendar-next7" style="margin-bottom:14px;"></div>
       <div id="calendar-grid" style="margin-top:8px;"></div>
       <div id="calendar-day-detail" style="margin-top:8px;"></div>
       <div id="calendar-list" style="margin-top:16px;"></div>
@@ -841,6 +844,9 @@
             <option value="monthly-coaching">Monthly coaching report</option>
             <option value="coach-development">Coach development report</option>
           </optgroup>
+          <optgroup label="Resources">
+            <option value="equipment-facilities">Equipment &amp; facilities</option>
+          </optgroup>
         </select>
 
         <div class="formgrid" id="report-daterange-row" style="margin-top:10px;">
@@ -891,8 +897,11 @@
       <div class="form-card" style="max-width:460px;">
         <label class="field-label">Organization name</label>
         <input type="text" id="branding-name">
-        <label class="field-label">Logo URL</label>
-        <input type="text" id="branding-logo" placeholder="https://...">
+        <label class="field-label">Logo</label>
+        <div id="branding-logo-preview" style="margin-bottom:8px;"></div>
+        <input type="file" accept="image/*" id="branding-logo-file">
+        <div class="status-msg" id="branding-logo-status"></div>
+        <input type="text" id="branding-logo" placeholder="https://... (or upload a file above)" style="margin-top:8px;">
         <label class="field-label">Brand color</label>
         <input type="color" id="branding-color" style="width:60px; height:40px; padding:2px; margin-bottom:10px;">
         <label class="field-label">Report footer text</label>
@@ -999,7 +1008,7 @@ const SUPABASE_URL = 'https://tjcrpnwmaadfcvdbthaz.supabase.co';
 // instead of silently staying stale. version.json must be redeployed
 // alongside this file on every future update, with a matching bump to
 // APP_BUILD_VERSION below — these two must always move together.
-const APP_BUILD_VERSION = '2026-08-25-04:52';
+const APP_BUILD_VERSION = '2026-08-25-06:52';
 async function checkForUpdate() {
   try {
     const res = await fetch('./version.json', { cache: 'no-store' });
@@ -1417,8 +1426,10 @@ function goBack() {
 }
 document.getElementById('back-btn').addEventListener('click', goBack);
 function goHome() {
+  navHistory = [];
+  document.getElementById('back-btn').style.display = 'none';
   const homePanel = (currentRole() === 'player' || currentRole() === 'parent') ? 'panel-my-dashboard' : 'panel-dashboard';
-  showOnlyPanel(homePanel);
+  showOnlyPanel(homePanel, { skipHistory: true });
   panelLoaders[homePanel]();
 }
 document.getElementById('brand-home-btn').addEventListener('click', goHome);
@@ -1563,6 +1574,33 @@ function initials(name) {
   return ((parts[0]?.[0] || '') + (parts[1]?.[0] || '')).toUpperCase() || name[0].toUpperCase();
 }
 
+const PULSE_METRIC_DEFS = [
+  { key: 'attendance_30d', label: 'Attendance (30d)' },
+  { key: 'reflections', label: 'Reflections completed' },
+  { key: 'assessments_overdue', label: 'Assessments overdue' },
+  { key: 'dev_reviews_due', label: 'Development reviews due' },
+  { key: 'win_loss', label: 'Win / Loss record' },
+  { key: 'new_joins', label: 'New players this month' },
+  { key: 'inactive_players', label: 'Inactive players' },
+  { key: 'pending_reflections', label: 'Pending reflections' },
+];
+document.getElementById('customize-pulse-btn').addEventListener('click', async () => {
+  const { data: profileRow } = await supabase.from('profiles').select('dashboard_pulse_metrics').eq('id', session.user.id).maybeSingle();
+  const chosen = new Set(profileRow?.dashboard_pulse_metrics?.length ? profileRow.dashboard_pulse_metrics : ['attendance_30d', 'reflections', 'assessments_overdue', 'dev_reviews_due']);
+  openSheet(sheetHead('Customize Academy Pulse') + `
+    <p style="color:var(--text-dim); font-size:13px; margin-top:0;">Pick what you want to see first — this is just for you, other people on your team can choose differently.</p>
+    ${PULSE_METRIC_DEFS.map(m => `<label style="display:flex; align-items:center; gap:8px; margin-bottom:8px;"><input type="checkbox" class="pulse-metric-check" value="${m.key}" ${chosen.has(m.key) ? 'checked' : ''}> ${esc(m.label)}</label>`).join('')}
+    <button class="btn primary" id="save-pulse-metrics-btn" style="margin-top:10px; width:auto;">Save</button>`);
+  document.getElementById('save-pulse-metrics-btn').addEventListener('click', async () => {
+    const selected = Array.from(document.querySelectorAll('.pulse-metric-check:checked')).map(cb => cb.value);
+    const { error } = await supabase.from('profiles').update({ dashboard_pulse_metrics: selected }).eq('id', session.user.id);
+    if (error) { showToast(error.message, 'error'); return; }
+    closeSheet();
+    showToast('Saved.', 'ok');
+    loadDashboard();
+  });
+});
+
 async function loadDashboard() {
   if (currentRole() === 'assistant_coach') { await loadCoachDashboard(); return; }
   document.getElementById('dashboard-trend-title').textContent = 'Activity Trend (8 weeks)';
@@ -1638,7 +1676,7 @@ async function loadDashboard() {
   const netJoins = newJoinsRes.count ?? 0;
   const inactiveTotal = inactiveCountRes.count ?? 0;
 
-  // ---------- Academy Pulse ----------
+  // ---------- Academy Pulse (customizable per person) ----------
   const { data: recentSessionsForAttendance } = await supabase.from('sessions').select('team_id, attendance').eq('org_id', currentOrgId).gte('date', thirtyDaysAgo);
   let attendancePct = null;
   if (recentSessionsForAttendance && recentSessionsForAttendance.length) {
@@ -1654,13 +1692,21 @@ async function loadDashboard() {
   const pastSessionCount = pastSessionIds.size;
   const reflectionPct = pastSessionCount ? Math.round((reflectedIds.size / pastSessionCount) * 100) : null;
 
-  const pulseMetrics = [
-    attendancePct !== null ? { label: 'Attendance (30d)', value: attendancePct + '%', sev: attendancePct >= 85 ? 'green' : attendancePct >= 60 ? 'yellow' : 'red' } : null,
-    reflectionPct !== null ? { label: 'Reflections completed', value: reflectionPct + '%', sev: reflectionPct >= 85 ? 'green' : reflectionPct >= 60 ? 'yellow' : 'red' } : null,
-    { label: 'Assessments overdue', value: String(stalePlayers.length), sev: stalePlayers.length === 0 ? 'green' : stalePlayers.length <= 3 ? 'yellow' : 'red' },
-    { label: 'Development reviews due', value: String((upcomingDeadlinesRes.data || []).length), sev: (upcomingDeadlinesRes.data || []).length === 0 ? 'green' : 'yellow' },
-  ].filter(Boolean);
-  document.getElementById('academy-pulse').innerHTML = pulseMetrics.map(m =>
+  window.PULSE_METRIC_LIBRARY = {
+    attendance_30d: attendancePct !== null ? { label: 'Attendance (30d)', value: attendancePct + '%', sev: attendancePct >= 85 ? 'green' : attendancePct >= 60 ? 'yellow' : 'red' } : null,
+    reflections: reflectionPct !== null ? { label: 'Reflections completed', value: reflectionPct + '%', sev: reflectionPct >= 85 ? 'green' : reflectionPct >= 60 ? 'yellow' : 'red' } : null,
+    assessments_overdue: { label: 'Assessments overdue', value: String(stalePlayers.length), sev: stalePlayers.length === 0 ? 'green' : stalePlayers.length <= 3 ? 'yellow' : 'red' },
+    dev_reviews_due: { label: 'Development reviews due', value: String((upcomingDeadlinesRes.data || []).length), sev: (upcomingDeadlinesRes.data || []).length === 0 ? 'green' : 'yellow' },
+    win_loss: (wins + losses + draws) ? { label: 'Win / Loss record', value: winLossLabel, sev: 'green' } : null,
+    new_joins: { label: 'New players this month', value: String(netJoins), sev: 'green' },
+    inactive_players: { label: 'Inactive players', value: String(inactiveTotal), sev: inactiveTotal === 0 ? 'green' : 'yellow' },
+    pending_reflections: { label: 'Pending reflections', value: String(pendingReflections), sev: pendingReflections === 0 ? 'green' : pendingReflections <= 3 ? 'yellow' : 'red' },
+  };
+  const DEFAULT_PULSE_METRICS = ['attendance_30d', 'reflections', 'assessments_overdue', 'dev_reviews_due'];
+  const { data: profileRow } = await supabase.from('profiles').select('dashboard_pulse_metrics').eq('id', session.user.id).maybeSingle();
+  const chosenKeys = (profileRow?.dashboard_pulse_metrics?.length ? profileRow.dashboard_pulse_metrics : DEFAULT_PULSE_METRICS);
+  const pulseMetrics = chosenKeys.map(k => window.PULSE_METRIC_LIBRARY[k]).filter(Boolean);
+  document.getElementById('academy-pulse').innerHTML = (pulseMetrics.length ? pulseMetrics : Object.values(window.PULSE_METRIC_LIBRARY).filter(Boolean)).map(m =>
     `<div class="pulseRow"><span class="pulseDot ${m.sev}"></span><span class="pulseLabel">${esc(m.label)}</span><span class="pulseValue">${esc(m.value)}</span></div>`
   ).join('');
 
@@ -2218,7 +2264,53 @@ function renderCalendarDayDetail(dayEntries, dateStr) {
   el.querySelectorAll('.list-item').forEach((row, i) => row.onclick = dayEntries[i].onOpen);
 }
 
+let calendarEntriesForExport = [];
+
+async function loadCalendarNext7Days() {
+  const el = document.getElementById('calendar-next7');
+  const today = new Date().toISOString().slice(0, 10);
+  const weekOut = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
+  const [sRes, mRes] = await Promise.all([
+    supabase.from('sessions').select('date, title, session_type, team_id').eq('org_id', currentOrgId).gte('date', today).lte('date', weekOut),
+    supabase.from('matches').select('date, opponent, team_id, result').eq('org_id', currentOrgId).gte('date', today).lte('date', weekOut),
+  ]);
+  if (sRes.error || mRes.error) { el.innerHTML = '<div class="empty-state">Could not load.</div>'; return; }
+  if (!cache.teams.length) await loadTeams();
+  const items = [
+    ...(sRes.data || []).map(s => ({ date: s.date, label: `${s.title || SESSION_TYPE_LABELS[s.session_type] || 'Session'} · ${nameById(cache.teams, s.team_id)}`, tag: 'Session' })),
+    ...(mRes.data || []).map(m => ({ date: m.date, label: `vs ${m.opponent || '—'} · ${nameById(cache.teams, m.team_id)}`, tag: 'Match' })),
+  ].sort((a, b) => (a.date < b.date ? -1 : 1));
+  el.innerHTML = items.length
+    ? items.map(i => `<div class="list-item"><span>${esc(i.label)}</span><span class="role-tag">${esc(i.tag)} · ${new Date(i.date + 'T00:00:00').toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}</span></div>`).join('')
+    : '<div class="empty-state">Nothing in the next 7 days.</div>';
+}
+
+function exportCalendarICS() {
+  if (!calendarEntriesForExport.length) { showToast('Nothing to export for this month.', 'error'); return; }
+  const escICS = s => String(s || '').replace(/[\\,;]/g, m => '\\' + m).replace(/\n/g, '\\n');
+  const lines = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//ProCoach OS Academy//EN'];
+  for (const e of calendarEntriesForExport) {
+    const dateStr = e.date.replace(/-/g, '');
+    lines.push('BEGIN:VEVENT');
+    lines.push(`UID:${e.date}-${Math.random().toString(36).slice(2)}@procoachos`);
+    lines.push(`DTSTART;VALUE=DATE:${dateStr}`);
+    lines.push(`DTEND;VALUE=DATE:${dateStr}`);
+    lines.push(`SUMMARY:${escICS(e.type + ': ' + e.label)}`);
+    if (e.venue) lines.push(`LOCATION:${escICS(e.venue)}`);
+    lines.push('END:VEVENT');
+  }
+  lines.push('END:VCALENDAR');
+  const blob = new Blob([lines.join('\r\n')], { type: 'text/calendar' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = `procoach-academy-calendar-${document.getElementById('calendar-month').value || 'export'}.ics`;
+  document.body.appendChild(a); a.click(); a.remove();
+  URL.revokeObjectURL(url);
+}
+document.getElementById('calendar-export-ics-btn').addEventListener('click', exportCalendarICS);
+
 async function renderCalendar() {
+  loadCalendarNext7Days(); // independent of month filter, may span into the next month
   const listEl = document.getElementById('calendar-list');
   listEl.innerHTML = '<div class="empty-state">Loading...</div>';
   if (!cache.teams.length) await loadTeams();
@@ -2264,6 +2356,7 @@ async function renderCalendar() {
   if (coachFilterVal) entries = entries.filter(e => e.coachId === coachFilterVal);
   if (venueFilterVal) entries = entries.filter(e => e.venue === venueFilterVal);
   entries.sort((a, b) => (a.date < b.date ? -1 : 1));
+  calendarEntriesForExport = entries;
 
   applyCalendarViewMode();
   if (calendarViewMode === 'grid') { renderCalendarGrid(entries, monthValue); return; }
@@ -2457,6 +2550,30 @@ async function openPlayerProfile(playerId) {
   const contactBits = [player.contact_phone, player.contact_email].filter(Boolean);
   if (contactBits.length) html += `<p><strong>Contact:</strong> ${esc(contactBits.join(' · '))}</p>`;
   if (player.guardian_name || player.guardian_contact) html += `<p><strong>Guardian:</strong> ${esc([player.guardian_name, player.guardian_contact].filter(Boolean).join(' · '))}</p>`;
+
+  // ---------- Development Journey: computed from recent assessment ratings ----------
+  // Deliberately separate from the manual Strengths/Areas fields above —
+  // this is auto-derived and stays current without extra data entry,
+  // while the coach's own manual notes remain untouched.
+  const journeyAssessments = assessmentsRes.data || [];
+  if (journeyAssessments.length && journeyAssessments[0].ratings) {
+    const latestRatings = journeyAssessments[0].ratings;
+    const entries = Object.entries(latestRatings).filter(([, v]) => typeof v === 'number');
+    if (entries.length) {
+      const sorted = [...entries].sort((a, b) => b[1] - a[1]);
+      const strengths = sorted.slice(0, 2).map(([k]) => k);
+      const developmentAreas = sorted.slice(-2).map(([k]) => k).reverse();
+      const avgRating = entries.reduce((s, [, v]) => s + v, 0) / entries.length;
+      const levelLabel = avgRating >= 8 ? 'Advanced' : avgRating >= 6 ? 'Competent' : avgRating >= 4 ? 'Developing' : 'Early Development';
+      html += '<div class="itemCard" style="margin-top:16px;"><div class="itemMain">';
+      html += `<b>Development Journey</b> <span class="muted">based on the assessment from ${esc(journeyAssessments[0].date)}</span>`;
+      html += `<div style="margin-top:8px;"><span class="tagPill">Current level: ${esc(levelLabel)} (${avgRating.toFixed(1)}/10)</span></div>`;
+      html += `<div style="margin-top:8px;"><strong>Strengths:</strong> ${strengths.map(esc).join(', ')}</div>`;
+      html += `<div><strong>Development areas:</strong> ${developmentAreas.map(esc).join(', ')}</div>`;
+      html += `<div style="margin-top:4px;"><strong>Next recommended focus:</strong> ${esc(developmentAreas[0])}</div>`;
+      html += '</div></div>';
+    }
+  }
 
   html += '<h3 style="margin-top:24px;">Analysis</h3>';
   const playerAnalysis = analysisForPlayerRes.data || [];
@@ -3480,6 +3597,13 @@ function matchCardHtml(m) {
   return card;
 }
 
+function avgRatingHint(ratingsObj) {
+  if (!ratingsObj || typeof ratingsObj !== 'object') return '';
+  const vals = Object.values(ratingsObj).filter(v => typeof v === 'number');
+  if (!vals.length) return '';
+  const avg = vals.reduce((a, b) => a + b, 0) / vals.length;
+  return `(individual avg: ${avg.toFixed(1)})`;
+}
 function matchFormHtml(m) {
   return sheetHead(m?.id ? 'Edit Match' : 'New Match') + `
     ${sectionHeadHtml('details', 'Match Details', true)}
@@ -3503,6 +3627,9 @@ function matchFormHtml(m) {
     ${sectionHeadHtml('teamreview', 'Team Review', false)}
     <div class="formgrid sectionCollapseBody" id="matchSec-teamreview" style="display:none;">
       <label>Overall team rating /10<input type="number" id="sheet-match-team-rating" min="1" max="10" value="${m?.team_rating ?? ''}"></label>
+      <label>Team batting rating /10 <span class="muted" style="font-weight:400;">${avgRatingHint(m?.batting_ratings)}</span><input type="number" id="sheet-match-team-batting-rating" min="1" max="10" value="${m?.team_batting_rating ?? ''}"></label>
+      <label>Team bowling rating /10 <span class="muted" style="font-weight:400;">${avgRatingHint(m?.bowling_ratings)}</span><input type="number" id="sheet-match-team-bowling-rating" min="1" max="10" value="${m?.team_bowling_rating ?? ''}"></label>
+      <label>Team fielding rating /10 <span class="muted" style="font-weight:400;">${avgRatingHint(m?.fielding_ratings)}</span><input type="number" id="sheet-match-team-fielding-rating" min="1" max="10" value="${m?.team_fielding_rating ?? ''}"></label>
       <label class="full">Team performance notes<textarea id="sheet-match-team-notes">${esc(m?.team_notes || '')}</textarea></label>
     </div>
 
@@ -3574,6 +3701,9 @@ function openMatchForm(m) {
       toss_decision: document.getElementById('sheet-match-toss-decision').value || null,
       conditions: document.getElementById('sheet-match-conditions').value.trim() || null,
       team_rating: document.getElementById('sheet-match-team-rating').value || null,
+      team_batting_rating: document.getElementById('sheet-match-team-batting-rating').value || null,
+      team_bowling_rating: document.getElementById('sheet-match-team-bowling-rating').value || null,
+      team_fielding_rating: document.getElementById('sheet-match-team-fielding-rating').value || null,
       team_notes: document.getElementById('sheet-match-team-notes').value.trim() || null,
       playing_xi: playingXi,
       batting_review: battingData.review,
@@ -4245,7 +4375,7 @@ const FIELD_LABELS = {
   tournaments: { name: 'Name', start_date: 'Start date', end_date: 'End date', notes: 'Notes', squad_player_ids: 'Squad' },
   seasons: { name: 'Name', team_id: 'Team', start_date: 'Start date', end_date: 'End date', notes: 'Notes' },
   sessions: { team_id: 'Team', date: 'Date', time: 'Time', title: 'Title', session_type: 'Type', duration: 'Duration', venue: 'Venue', focus: 'Focus', objectives: 'Objectives', warmup: 'Warm-up', main: 'Main activity', game: 'Game', cues: 'Cues', success: 'Success criteria', attendance: 'Attendance', main_drill_ids: 'Main drills', game_drill_ids: 'Game drills' },
-  matches: { team_id: 'Team', tournament_id: 'Tournament', date: 'Date', opponent: 'Opponent', venue: 'Venue', format: 'Format', result: 'Result', toss: 'Toss', toss_decision: 'Toss decision', conditions: 'Conditions', team_rating: 'Team rating', team_notes: 'Team review', playing_xi: 'Playing XI', batting_review: 'Batting review', bowling_review: 'Bowling review', fielding_review: 'Fielding review', batting_ratings: 'Batting ratings', bowling_ratings: 'Bowling ratings', fielding_ratings: 'Fielding ratings', actions: 'Actions', notes: 'Notes' },
+  matches: { team_id: 'Team', tournament_id: 'Tournament', date: 'Date', opponent: 'Opponent', venue: 'Venue', format: 'Format', result: 'Result', toss: 'Toss', toss_decision: 'Toss decision', conditions: 'Conditions', team_rating: 'Team rating', team_batting_rating: 'Team batting rating', team_bowling_rating: 'Team bowling rating', team_fielding_rating: 'Team fielding rating', team_notes: 'Team review', playing_xi: 'Playing XI', batting_review: 'Batting review', bowling_review: 'Bowling review', fielding_review: 'Fielding review', batting_ratings: 'Batting ratings', bowling_ratings: 'Bowling ratings', fielding_ratings: 'Fielding ratings', actions: 'Actions', notes: 'Notes' },
   assessments: { player_id: 'Player', date: 'Date', disciplines: 'Disciplines', ratings: 'Ratings', discipline_notes: 'Discipline notes', priority: 'Priority', comments: 'Comments', media_links: 'Media links' },
   reflections: { session_id: 'Session', date: 'Date', rating: 'Rating', communication: 'Communication', well: 'What went well', better: 'What could be better', players: 'Player notes', change: 'What to change', next: 'Next steps' },
   phases: { name: 'Name', start_date: 'Start date', end_date: 'End date', focus: 'Focus', session_target: 'Session target' },
@@ -4624,7 +4754,7 @@ const REPORT_CONTROLS = {
   'match-results': { daterange: true, team: true }, 'match-report': { match: true },
   'tournament-report': { tournament: true }, 'season-analytics': { season: true },
   'session-report': { daterange: true, team: true }, 'monthly-coaching': { month: true, team: true },
-  'coach-development': { daterange: true },
+  'coach-development': { daterange: true }, 'equipment-facilities': {},
 };
 function updateReportControlVisibility() {
   const cfg = REPORT_CONTROLS[document.getElementById('report-type').value] || {};
@@ -4673,7 +4803,7 @@ document.getElementById('run-report-btn').addEventListener('click', async () => 
     'match-results': runMatchResultsReport, 'match-report': runMatchReport,
     'tournament-report': runTournamentReport, 'season-analytics': runSeasonAnalyticsReport,
     'session-report': runSessionReport, 'monthly-coaching': runMonthlyCoachingReport,
-    'coach-development': runCoachDevelopmentReport,
+    'coach-development': runCoachDevelopmentReport, 'equipment-facilities': runEquipmentFacilitiesReport,
   };
   const fn = runners[document.getElementById('report-type').value];
   if (!fn) return;
@@ -4873,6 +5003,10 @@ async function runMatchReport() {
   const statCards = [
     { label: 'Format', val: m.format }, { label: 'Venue', val: m.venue },
     { label: 'Toss', val: m.toss ? `${m.toss}${m.toss_decision ? ' (' + m.toss_decision + ')' : ''}` : null }, { label: 'Result', val: m.result },
+    { label: 'Team Rating', val: m.team_rating ? m.team_rating + '/10' : null },
+    { label: 'Team Batting', val: m.team_batting_rating ? m.team_batting_rating + '/10' : null },
+    { label: 'Team Bowling', val: m.team_bowling_rating ? m.team_bowling_rating + '/10' : null },
+    { label: 'Team Fielding', val: m.team_fielding_rating ? m.team_fielding_rating + '/10' : null },
   ].filter(s => s.val);
   html += '<div class="stats-grid" style="margin:16px 0;">' + statCards.map(s => `<div class="stat-card"><div class="num" style="font-size:15px;">${esc(s.val)}</div><div class="label">${s.label}</div></div>`).join('') + '</div>';
   if (m.team_notes) html += `<p><strong>Team review:</strong> ${esc(m.team_notes)}</p>`;
@@ -5040,6 +5174,51 @@ async function runCoachDevelopmentReport() {
     return `<div class="list-item"><span>${esc(nameByUser[m.user_id] || m.user_id)} <span class="role-tag" style="margin-left:6px;">${esc(m.role)}</span></span><span class="role-tag">${wl.sessions} sessions · ${wl.matches} matches · ${wl.assessments} assessments · ${wl.reflections} reflections</span></div>`;
   }).join('');
   outputEl.innerHTML = html || '<div class="empty-state">No coaching staff found.</div>';
+}
+
+async function runEquipmentFacilitiesReport() {
+  const outputEl = document.getElementById('report-output');
+  outputEl.innerHTML = '<div class="empty-state">Generating...</div>';
+
+  const [equipRes, facRes] = await Promise.all([
+    supabase.from('equipment').select('*').eq('org_id', currentOrgId).order('name'),
+    supabase.from('facilities').select('*').eq('org_id', currentOrgId).order('name'),
+  ]);
+  if (equipRes.error || facRes.error) { reportError(equipRes.error || facRes.error, 'Equipment & Facilities'); outputEl.innerHTML = '<div class="empty-state">Could not load.</div>'; return; }
+
+  const equipment = equipRes.data || [];
+  const facilities = facRes.data || [];
+  const needsAttention = equipment.filter(e => e.condition === 'Poor' || e.condition === 'Fair');
+
+  let html = '';
+  html += '<div class="stats-grid" style="margin-bottom:16px;">';
+  html += `<div class="stat-card"><div class="num">${equipment.length}</div><div class="label">Equipment items</div></div>`;
+  html += `<div class="stat-card"><div class="num">${equipment.reduce((s, e) => s + (e.quantity || 0), 0)}</div><div class="label">Total quantity</div></div>`;
+  html += `<div class="stat-card"><div class="num" style="${needsAttention.length ? 'color:var(--danger);' : ''}">${needsAttention.length}</div><div class="label">Needs attention</div></div>`;
+  html += `<div class="stat-card"><div class="num">${facilities.length}</div><div class="label">Facilities</div></div>`;
+  html += '</div>';
+
+  if (needsAttention.length) {
+    html += '<h3>Needs attention (Fair / Poor condition)</h3>';
+    html += needsAttention.map(e => `<div class="list-item"><span>${esc(e.name)}${e.location ? ' · ' + esc(e.location) : ''}</span><span class="role-tag" style="color:var(--danger);">${esc(e.condition)} · qty ${e.quantity ?? '—'}</span></div>`).join('');
+  }
+
+  html += '<h3 style="margin-top:16px;">Full inventory</h3>';
+  if (!equipment.length) html += '<div class="empty-state">No equipment recorded yet.</div>';
+  else {
+    const byCategory = {};
+    for (const e of equipment) (byCategory[e.category || 'Uncategorised'] ||= []).push(e);
+    for (const [cat, items] of Object.entries(byCategory)) {
+      html += `<div class="sectionHeading" style="margin-top:12px;">${esc(cat)}</div>`;
+      html += items.map(e => `<div class="list-item"><span>${esc(e.name)}${e.location ? ' · ' + esc(e.location) : ''}</span><span class="role-tag">qty ${e.quantity ?? '—'} · ${esc(e.condition || '—')}</span></div>`).join('');
+    }
+  }
+
+  html += '<h3 style="margin-top:16px;">Facilities</h3>';
+  if (!facilities.length) html += '<div class="empty-state">No facilities recorded yet.</div>';
+  else html += facilities.map(f => `<div class="itemCard"><div class="itemMain"><b>${esc(f.name)}</b><div class="muted">${esc(f.type || '—')}${f.capacity ? ' · Capacity ' + esc(f.capacity) : ''}</div>${f.availability_notes ? `<small>Availability: ${esc(f.availability_notes)}</small>` : ''}${f.maintenance_notes ? `<small>Maintenance: ${esc(f.maintenance_notes)}</small>` : ''}</div></div>`).join('');
+
+  outputEl.innerHTML = html;
 }
 
 async function runAttendanceReport() {
@@ -5949,7 +6128,21 @@ async function loadBranding() {
   document.getElementById('branding-logo').value = data.logo_url || '';
   document.getElementById('branding-color').value = data.brand_color || '#10b981';
   document.getElementById('branding-footer').value = data.report_footer || '';
+  document.getElementById('branding-logo-preview').innerHTML = data.logo_url ? `<img src="${esc(data.logo_url)}" alt="" style="height:56px; object-fit:contain;">` : '';
 }
+document.getElementById('branding-logo-file').addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const statusEl = document.getElementById('branding-logo-status');
+  statusEl.textContent = 'Uploading...'; statusEl.className = 'status-msg';
+  const path = `${currentOrgId}/${Date.now()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+  const { error: uploadErr } = await supabase.storage.from('org-logos').upload(path, file);
+  if (uploadErr) { statusEl.textContent = uploadErr.message; statusEl.className = 'status-msg error'; return; }
+  const { data: urlData } = supabase.storage.from('org-logos').getPublicUrl(path);
+  document.getElementById('branding-logo').value = urlData.publicUrl;
+  document.getElementById('branding-logo-preview').innerHTML = `<img src="${esc(urlData.publicUrl)}" alt="" style="height:56px; object-fit:contain;">`;
+  statusEl.textContent = 'Uploaded — click Save below to apply it.'; statusEl.className = 'status-msg ok';
+});
 document.getElementById('save-branding-btn').addEventListener('click', async () => {
   const statusEl = document.getElementById('branding-status');
   const name = document.getElementById('branding-name').value.trim();
