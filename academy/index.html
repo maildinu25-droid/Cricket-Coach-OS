@@ -1014,7 +1014,7 @@ const SUPABASE_URL = 'https://tjcrpnwmaadfcvdbthaz.supabase.co';
 // instead of silently staying stale. version.json must be redeployed
 // alongside this file on every future update, with a matching bump to
 // APP_BUILD_VERSION below — these two must always move together.
-const APP_BUILD_VERSION = '2026-08-25-07:57';
+const APP_BUILD_VERSION = '2026-08-25-08:09';
 async function checkForUpdate() {
   try {
     const res = await fetch('./version.json', { cache: 'no-store' });
@@ -1402,6 +1402,13 @@ async function applyOrgContext(isInitialBoot) {
     // of always dropping them back on the dashboard.
     const restored = localStorage.getItem('academy_current_panel');
     const PORTAL_PANELS = ['panel-my-dashboard', 'panel-my-schedule', 'panel-my-development'];
+    if (restored === 'panel-player-profile' && !isPortalRole) {
+      // Doesn't fit the generic zero-argument restoration path below —
+      // openPlayerProfile needs to know WHICH player, which the plain
+      // panel identifier alone can't carry.
+      const playerId = localStorage.getItem('academy_current_player_id');
+      if (playerId) { openPlayerProfile(playerId); return; }
+    }
     if (restored && document.getElementById(restored) && panelLoaders[restored]) {
       const restoredIsPortal = PORTAL_PANELS.includes(restored);
       if (restored === 'panel-profile' || isPortalRole === restoredIsPortal) target = restored;
@@ -2514,6 +2521,7 @@ function testingTrendHtml(type, baseline, latest) {
 
 async function openPlayerProfile(playerId) {
   showOnlyPanel('panel-player-profile');
+  try { localStorage.setItem('academy_current_player_id', playerId); } catch (e) { /* restoration just won't have the specific player after a reload */ }
   const contentEl = document.getElementById('player-profile-content');
   contentEl.innerHTML = '<div class="empty-state">Loading...</div>';
   if (!cache.teams.length) await loadTeams();
