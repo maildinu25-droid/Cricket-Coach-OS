@@ -999,7 +999,7 @@ const SUPABASE_URL = 'https://tjcrpnwmaadfcvdbthaz.supabase.co';
 // instead of silently staying stale. version.json must be redeployed
 // alongside this file on every future update, with a matching bump to
 // APP_BUILD_VERSION below — these two must always move together.
-const APP_BUILD_VERSION = '2026-08-25-02:24';
+const APP_BUILD_VERSION = '2026-08-25-04:52';
 async function checkForUpdate() {
   try {
     const res = await fetch('./version.json', { cache: 'no-store' });
@@ -6075,6 +6075,8 @@ async function loadMembers() {
   const { data, error } = await supabase.from('memberships').select('id, role, status, invited_email, user_id').eq('org_id', currentOrgId);
   if (error) { listEl.innerHTML = `<div class="empty-state">${error.message}</div>`; return; }
 
+  const nameByUserId = await profilesByIds(data.map(m => m.user_id));
+
   const assistantIds = data.filter(m => m.role === 'assistant_coach' && m.status === 'active').map(m => m.id);
   let assignmentsByMembership = {};
   if (assistantIds.length) {
@@ -6087,7 +6089,7 @@ async function loadMembers() {
 
   listEl.innerHTML = '';
   for (const m of data) {
-    const label = m.invited_email || m.user_id;
+    const label = (m.user_id && nameByUserId[m.user_id]) || m.invited_email || m.user_id;
     const row = document.createElement('div');
     row.className = 'list-item';
     row.style.flexDirection = 'column';
