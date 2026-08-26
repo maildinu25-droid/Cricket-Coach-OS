@@ -92,6 +92,27 @@
     .pr-sub{ font-size:11px; color:#555; margin-bottom:14px; }
   }
 </style>
+<script>// ===== Premium gate — Analysis Tools are a Premium-only feature.     =====
+// ===== Reads the same coachbook_license value app.html already uses =====
+// ===== so the rule is defined in exactly one place, not duplicated   =====
+// ===== with different logic per file.                                =====
+function isPremiumUser(){
+  try{
+    var raw = JSON.parse(localStorage.getItem("coachbook_license"));
+    return !!(raw && (raw.status === "premium" || raw.status === "trial"));
+  }catch(e){ return false; }
+}
+function showPremiumLockedMessage(){
+  document.body.innerHTML =
+    '<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#0a1420;color:#eef2f6;font-family:Inter,Arial,sans-serif;text-align:center;padding:24px;box-sizing:border-box">' +
+    '<div style="max-width:420px">' +
+    '<div style="font-size:11px;text-transform:uppercase;letter-spacing:.12em;font-weight:700;color:#e0ab2c;margin-bottom:14px">ANALYSIS TOOLS &middot; PREMIUM FEATURE</div>' +
+    '<h1 style="font-size:24px;margin:0 0 14px;font-weight:800">This tool requires a Premium plan</h1>' +
+    '<p style="color:#a7b0bc;font-size:14px;line-height:1.6;margin:0 0 22px">Pitch Map, Batting Map, Live Session and Insights are part of the Premium plan. Start a free trial or upgrade in ProCoach OS to unlock them.</p>' +
+    '<a href="app.html" style="display:inline-block;background:linear-gradient(135deg,#22c58b,#1fae7a);color:#062016;font-weight:800;padding:12px 24px;border-radius:11px;text-decoration:none">Go to ProCoach OS &rarr;</a>' +
+    '</div></div>';
+}
+</script>
 </head>
 <body>
 <div id="app"></div>
@@ -609,25 +630,29 @@
     setTimeout(function(){ window.print(); }, 60);
   }
 
-  render();
-  Promise.all([
-    migrateLegacyLocalStorage("pitchsession:", "pitchsessions"),
-    migrateLegacyLocalStorage("battingsession:", "battingsessions")
-  ]).then(function(){
-    return Promise.all([dbGetAll("pitchsessions"), dbGetAll("battingsessions"), dbGetAll("livesessions")]);
-  }).then(function(results){
-    bowlSessions = results[0].map(function(r){ return r.data; }).sort(function(a,b){ return (a.date||"").localeCompare(b.date||""); });
-    batSessions = results[1].map(function(r){ return r.data; }).sort(function(a,b){ return (a.date||"").localeCompare(b.date||""); });
-    liveSessions = results[2].map(function(r){ return r.data; }).sort(function(a,b){ return (a.date||"").localeCompare(b.date||""); });
-    bowlers = aggregate(bowlSessions, "bowlers");
-    batters = aggregate(batSessions, "batters");
-    foldLiveSessionsIntoAggregates(liveSessions, bowlers, batters);
-    dataReady = true;
+  if (!isPremiumUser()){
+    showPremiumLockedMessage();
+  } else {
     render();
-  }).catch(function(){
-    dataReady = true;
-    render();
-  });
+    Promise.all([
+      migrateLegacyLocalStorage("pitchsession:", "pitchsessions"),
+      migrateLegacyLocalStorage("battingsession:", "battingsessions")
+    ]).then(function(){
+      return Promise.all([dbGetAll("pitchsessions"), dbGetAll("battingsessions"), dbGetAll("livesessions")]);
+    }).then(function(results){
+      bowlSessions = results[0].map(function(r){ return r.data; }).sort(function(a,b){ return (a.date||"").localeCompare(b.date||""); });
+      batSessions = results[1].map(function(r){ return r.data; }).sort(function(a,b){ return (a.date||"").localeCompare(b.date||""); });
+      liveSessions = results[2].map(function(r){ return r.data; }).sort(function(a,b){ return (a.date||"").localeCompare(b.date||""); });
+      bowlers = aggregate(bowlSessions, "bowlers");
+      batters = aggregate(batSessions, "batters");
+      foldLiveSessionsIntoAggregates(liveSessions, bowlers, batters);
+      dataReady = true;
+      render();
+    }).catch(function(){
+      dataReady = true;
+      render();
+    });
+  }
 })();
 </script>
 </body>

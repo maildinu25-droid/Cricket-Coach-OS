@@ -188,6 +188,27 @@ function attachPlayerAutocomplete(inputIds){
  });
 }
 </script>
+<script>// ===== Premium gate — Analysis Tools are a Premium-only feature.     =====
+// ===== Reads the same coachbook_license value app.html already uses =====
+// ===== so the rule is defined in exactly one place, not duplicated   =====
+// ===== with different logic per file.                                =====
+function isPremiumUser(){
+  try{
+    var raw = JSON.parse(localStorage.getItem("coachbook_license"));
+    return !!(raw && (raw.status === "premium" || raw.status === "trial"));
+  }catch(e){ return false; }
+}
+function showPremiumLockedMessage(){
+  document.body.innerHTML =
+    '<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#0a1420;color:#eef2f6;font-family:Inter,Arial,sans-serif;text-align:center;padding:24px;box-sizing:border-box">' +
+    '<div style="max-width:420px">' +
+    '<div style="font-size:11px;text-transform:uppercase;letter-spacing:.12em;font-weight:700;color:#e0ab2c;margin-bottom:14px">ANALYSIS TOOLS &middot; PREMIUM FEATURE</div>' +
+    '<h1 style="font-size:24px;margin:0 0 14px;font-weight:800">This tool requires a Premium plan</h1>' +
+    '<p style="color:#a7b0bc;font-size:14px;line-height:1.6;margin:0 0 22px">Pitch Map, Batting Map, Live Session and Insights are part of the Premium plan. Start a free trial or upgrade in ProCoach OS to unlock them.</p>' +
+    '<a href="app.html" style="display:inline-block;background:linear-gradient(135deg,#22c58b,#1fae7a);color:#062016;font-weight:800;padding:12px 24px;border-radius:11px;text-decoration:none">Go to ProCoach OS &rarr;</a>' +
+    '</div></div>';
+}
+</script>
 </head>
 <body>
 <div id="app"></div>
@@ -1315,6 +1336,89 @@ function attachPlayerAutocomplete(inputIds){
     }).catch(function(){ state.status = "Couldn't generate the combined image."; render(); setTimeout(function(){ state.status=""; render(); }, 2500); });
   }
 
+  // ===== All-time player report — reads every saved session, combines =====
+  // ===== this player's balls, and reuses the exact same statsFor/SVG   =====
+  // ===== drawing functions as the normal single-session print report. =====
+  function loadAllTimeBallsForBowler(playerName){
+    return new Promise(function(resolve){
+      var target = String(playerName||"").trim().toLowerCase();
+      if (!target){ resolve(null); return; }
+      try{
+        var req = indexedDB.open("procoachos", 4);
+        req.onerror = function(){ resolve(null); };
+        req.onsuccess = function(){
+          try{
+            var idb = req.result;
+            if (!idb.objectStoreNames.contains("pitchsessions")){ resolve(null); return; }
+            var tx = idb.transaction("pitchsessions", "readonly");
+            var getAllReq = tx.objectStore("pitchsessions").getAll();
+            getAllReq.onerror = function(){ resolve(null); };
+            getAllReq.onsuccess = function(){
+              var records = getAllReq.result || [];
+              var allBalls = [];
+              var profile = null;
+              records.forEach(function(rec){
+                var data = rec && rec.data;
+                if (!data || !data.bowlers) return;
+                Object.keys(data.bowlers).forEach(function(bid){
+                  var b = data.bowlers[bid];
+                  if (!b || !b.name || b.name.trim().toLowerCase() !== target) return;
+                  allBalls = allBalls.concat(b.balls || []);
+                  profile = b;
+                });
+              });
+              if (!allBalls.length){ resolve(null); return; }
+              resolve({ name: profile.name, hand: profile.hand, bowlArm: profile.bowlArm, bowlPace: profile.bowlPace, bowlSpin: profile.bowlSpin, bowlSide: profile.bowlSide, balls: allBalls });
+            };
+          }catch(e){ resolve(null); }
+        };
+      }catch(e){ resolve(null); }
+    });
+  }
+  function renderAllTimePlayerReport(playerName){
+    document.getElementById("app").style.display = "none";
+    var container = document.getElementById("print-report");
+    container.style.cssText = "display:block;position:static;width:100%;max-width:900px;margin:0 auto;background:#fff;color:#141414;font-family:Arial,Helvetica,sans-serif;padding:24px;min-height:100vh;box-sizing:border-box";
+    container.innerHTML = '<div class="pr-bowler"><h1>Loading '+esc(playerName)+'\u2019s all-time report\u2026</h1></div>';
+    loadAllTimeBallsForBowler(playerName).then(function(b){
+      if (!b){
+        container.innerHTML = '<div class="pr-bowler"><h1>'+esc(playerName)+' \u2014 All-Time Bowling Report</h1><p>No PitchMap sessions found for this player yet.</p></div>';
+        return;
+      }
+      var st = statsFor(b.balls);
+      var pitchSvg = pitchSvgMarkup(b, "dots", b.balls, null, null, true);
+      var groundSvg = groundSvgMarkup(b, b.balls, null, null, true);
+      var html = '<button class="pm-btn" style="margin-bottom:16px" onclick="window.print()">Print / Save PDF</button>';
+      html += '<div class="pr-bowler">';
+      html += '<div class="pr-head"><h1>'+esc(b.name)+' \u2014 All-Time Bowling Report</h1><div class="pr-meta">'+bowlTypeText(b)+' &middot; '+(b.bowlSide==="Around"?"Around":"Over")+' the wkt &middot; combined across every saved session &middot; ProCoach OS</div></div>';
+      html += '<div class="pr-stats">';
+      [["Total balls",b.balls.length],["Runs",st.totalRuns],["Wickets",st.wickets],["Economy",st.economy.toFixed(1)],["Dot ball %",st.dotPct.toFixed(0)+"%"],["Boundaries",st.boundaries]].forEach(function(s){
+        html += '<div class="pr-stat"><b>'+s[1]+'</b>'+s[0]+'</div>';
+      });
+      html += '</div>';
+      html += '<div class="pr-charts">'+pitchSvg+groundSvg+'</div>';
+      html += '<div class="pr-section-title">Length breakdown</div>';
+      html += printOutcomeColumnsTable(LENGTH_ZONES.map(function(z){ return { label:z.label, balls: b.balls.filter(function(ball){return lengthZoneFor(ball.yPct).id===z.id;}) }; }));
+      var lineLabels = b.hand==="LHB" ? LINE_LABELS_LHB : LINE_LABELS_RHB;
+      html += '<div class="pr-section-title">Line breakdown ('+(b.hand==="LHB"?"left-hand":"right-hand")+" batter's view)</div>";
+      html += printOutcomeColumnsTable(lineLabels.map(function(label,i){ return { label:label, balls: b.balls.filter(function(ball){return lineZoneIndex(ball.xPct)===i;}) }; }));
+      html += '<div class="pr-section-title">Delivery type</div>';
+      html += printOutcomeColumnsTable(DELIVERY_TYPES.map(function(dt){ return { label:dt, balls: b.balls.filter(function(ball){return ball.deliveryType===dt;}) }; }).filter(function(r){return r.balls.length>0;}));
+      var csP = consistencyStats(b.balls);
+      if (csP){
+        html += '<div class="pr-section-title">Consistency</div><div class="pr-stats"><div class="pr-stat"><b>'+csP.lengthPct+'%</b>Length %</div><div class="pr-stat"><b>'+csP.linePct+'%</b>Line %</div><div class="pr-stat"><b>'+csP.corridorPct+'%</b>Corridor %</div></div>';
+      }
+      html += '<div class="pr-section-title">Delivery log (all sessions combined)</div><table class="pr-table"><tr><th>Outcome</th><th>Length</th><th>Line</th><th>Shot</th></tr>';
+      b.balls.forEach(function(ball){
+        var o = outcomeMap[ball.outcome], lz = lengthZoneFor(ball.yPct), ln = lineLabel(ball.xPct, b.hand);
+        var outcomeTxt = o.label + (ball.outcome==="W" && ball.dismissal ? " ("+ball.dismissal+")" : "");
+        var shotTxt = hasWagon(ball) ? ((b.hand==="LHB" ? ball.wagonX>=GW_CX : ball.wagonX<GW_CX) ? "Off side" : "Leg side") : "\u2014";
+        html += '<tr><td>'+esc(outcomeTxt)+'</td><td>'+lz.label+'</td><td>'+ln+'</td><td>'+shotTxt+'</td></tr>';
+      });
+      html += '</table></div>';
+      container.innerHTML = html;
+    });
+  }
   function printReport(){
     var ids = Object.keys(state.bowlers);
     var container = document.getElementById("print-report");
@@ -1367,9 +1471,19 @@ function attachPlayerAutocomplete(inputIds){
     setTimeout(function(){ window.print(); }, 60);
   }
 
-  render();
-  migrateLegacyLocalStorage().catch(function(){});
-  initPlayerAutocomplete(["input-bowler"]);
+  if (!isPremiumUser()){
+    showPremiumLockedMessage();
+  } else {
+    var urlParams = new URLSearchParams(window.location.search);
+    var reportPlayer = urlParams.get("player");
+    if (reportPlayer){
+      renderAllTimePlayerReport(reportPlayer);
+    } else {
+      render();
+    }
+    migrateLegacyLocalStorage().catch(function(){});
+    initPlayerAutocomplete(["input-bowler"]);
+  }
 })();
 </script>
 </body>

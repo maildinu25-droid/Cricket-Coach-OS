@@ -190,6 +190,27 @@ function attachPlayerAutocomplete(inputIds){
  });
 }
 </script>
+<script>// ===== Premium gate — Analysis Tools are a Premium-only feature.     =====
+// ===== Reads the same coachbook_license value app.html already uses =====
+// ===== so the rule is defined in exactly one place, not duplicated   =====
+// ===== with different logic per file.                                =====
+function isPremiumUser(){
+  try{
+    var raw = JSON.parse(localStorage.getItem("coachbook_license"));
+    return !!(raw && (raw.status === "premium" || raw.status === "trial"));
+  }catch(e){ return false; }
+}
+function showPremiumLockedMessage(){
+  document.body.innerHTML =
+    '<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#0a1420;color:#eef2f6;font-family:Inter,Arial,sans-serif;text-align:center;padding:24px;box-sizing:border-box">' +
+    '<div style="max-width:420px">' +
+    '<div style="font-size:11px;text-transform:uppercase;letter-spacing:.12em;font-weight:700;color:#e0ab2c;margin-bottom:14px">ANALYSIS TOOLS &middot; PREMIUM FEATURE</div>' +
+    '<h1 style="font-size:24px;margin:0 0 14px;font-weight:800">This tool requires a Premium plan</h1>' +
+    '<p style="color:#a7b0bc;font-size:14px;line-height:1.6;margin:0 0 22px">Pitch Map, Batting Map, Live Session and Insights are part of the Premium plan. Start a free trial or upgrade in ProCoach OS to unlock them.</p>' +
+    '<a href="app.html" style="display:inline-block;background:linear-gradient(135deg,#22c58b,#1fae7a);color:#062016;font-weight:800;padding:12px 24px;border-radius:11px;text-decoration:none">Go to ProCoach OS &rarr;</a>' +
+    '</div></div>';
+}
+</script>
 </head>
 <body>
 <div id="app"></div>
@@ -1368,6 +1389,105 @@ function attachPlayerAutocomplete(inputIds){
       canvas.toBlob(function(blob){ shareBlob(blob, "livesession-"+state.sessionDate+".png"); }, "image/png");
     }).catch(function(){ state.status = "Couldn't generate image."; render(); setTimeout(function(){ state.status=""; render(); }, 2500); });
   }
+  // ===== All-time player report — reads every saved session, combines =====
+  // ===== this player's deliveries (as bowler AND/OR batter), and      =====
+  // ===== reuses the same statsFor/SVG drawing functions as the        =====
+  // ===== normal single-session print report. Phase breakdown is       =====
+  // ===== skipped here since phases are format-specific and different =====
+  // ===== sessions could use different formats.                       =====
+  function loadAllTimeDeliveriesFor(playerName){
+    return new Promise(function(resolve){
+      var target = String(playerName||"").trim().toLowerCase();
+      if (!target){ resolve({bowling:null,batting:null}); return; }
+      try{
+        var req = indexedDB.open("procoachos", 4);
+        req.onerror = function(){ resolve({bowling:null,batting:null}); };
+        req.onsuccess = function(){
+          try{
+            var idb = req.result;
+            if (!idb.objectStoreNames.contains("livesessions")){ resolve({bowling:null,batting:null}); return; }
+            var tx = idb.transaction("livesessions", "readonly");
+            var getAllReq = tx.objectStore("livesessions").getAll();
+            getAllReq.onerror = function(){ resolve({bowling:null,batting:null}); };
+            getAllReq.onsuccess = function(){
+              var records = getAllReq.result || [];
+              var bowlBalls = [], batBalls = [], bowlName = null, batName = null;
+              records.forEach(function(rec){
+                var data = rec && rec.data;
+                if (!data || !Array.isArray(data.deliveries)) return;
+                data.deliveries.forEach(function(d){
+                  if (!d) return;
+                  if (d.bowlerName && d.bowlerName.trim().toLowerCase()===target){ bowlBalls.push(d); bowlName = d.bowlerName; }
+                  if (d.batterName && d.batterName.trim().toLowerCase()===target){ batBalls.push(d); batName = d.batterName; }
+                });
+              });
+              resolve({
+                bowling: bowlBalls.length ? { name: bowlName, balls: bowlBalls } : null,
+                batting: batBalls.length ? { name: batName, hand: batBalls[0].batterHand, balls: batBalls } : null
+              });
+            };
+          }catch(e){ resolve({bowling:null,batting:null}); }
+        };
+      }catch(e){ resolve({bowling:null,batting:null}); }
+    });
+  }
+  function renderAllTimePlayerReport(playerName){
+    document.getElementById("app").style.display = "none";
+    var container = document.getElementById("print-report");
+    container.style.cssText = "display:block;position:static;width:100%;max-width:900px;margin:0 auto;background:#fff;color:#141414;font-family:Arial,Helvetica,sans-serif;padding:24px;min-height:100vh;box-sizing:border-box";
+    container.innerHTML = '<div class="pr-player"><div class="pr-title">Loading '+esc(playerName)+'\u2019s all-time report\u2026</div></div>';
+    loadAllTimeDeliveriesFor(playerName).then(function(result){
+      if (!result.bowling && !result.batting){
+        container.innerHTML = '<div class="pr-player"><div class="pr-title">'+esc(playerName)+' \u2014 All-Time Live Session Report</div><div class="pr-sub">No Live Session deliveries found for this player yet.</div></div>';
+        return;
+      }
+      var html = '<button class="pm-btn" style="margin-bottom:16px" onclick="window.print()">Print / Save PDF</button>';
+      html += '<div class="pr-player"><div class="pr-title">'+esc(playerName)+' \u2014 All-Time Live Session Report</div><div class="pr-sub">Combined across every saved session &middot; ProCoach OS</div></div>';
+      if (result.bowling){
+        var b = result.bowling, balls = b.balls, st = statsFor(balls);
+        var bowlHandCounts = {}; balls.forEach(function(d){ bowlHandCounts[d.batterHand] = (bowlHandCounts[d.batterHand]||0)+1; });
+        var bowlChartHand = (bowlHandCounts.LHB||0) > (bowlHandCounts.RHB||0) ? "LHB" : "RHB";
+        html += '<div class="pr-player"><div class="pr-title">'+esc(b.name)+' \u2014 Bowling</div><div class="pr-sub">All sessions combined &middot; ProCoach OS Live Session</div>';
+        html += '<div class="pr-stats">';
+        [["Total balls",balls.length],["Runs",st.totalRuns],["Economy",st.economy.toFixed(1)],["Dismissals",st.dismissals],["Boundaries",st.boundaries]].forEach(function(s){ html += '<div class="pr-stat"><b>'+s[1]+'</b>'+s[0]+'</div>'; });
+        html += '</div>';
+        html += '<div class="pr-charts">'+pitchSvgMarkup("dots", balls, null, null, true)+groundSvgMarkup(bowlChartHand, balls, null, null, true)+'</div>';
+        html += '<div class="pr-section-title">Length</div>';
+        html += printOutcomeColumnsTable(LENGTH_ZONES.map(function(z){ return { label:z.label, balls: balls.filter(function(d){return lengthZoneFor(d.yPct).id===z.id;}) }; }));
+        var bowlLineLabels = bowlChartHand==="LHB" ? LINE_LABELS_LHB : LINE_LABELS_RHB;
+        html += '<div class="pr-section-title">Line</div>';
+        html += printOutcomeColumnsTable(bowlLineLabels.map(function(label,i){ return { label:label, balls: balls.filter(function(d){return lineZoneIndex(d.xPct)===i;}) }; }));
+        html += '<table class="pr-table"><tr><th>vs</th><th>Outcome</th><th>Length</th><th>Line</th></tr>';
+        balls.forEach(function(d){
+          var o = outcomeMap[d.outcome], lz = lengthZoneFor(d.yPct), ln = lineLabel(d.xPct, d.batterHand);
+          var ot = o.label + (d.outcome==="W"&&d.dismissal?" ("+d.dismissal+")":"");
+          html += '<tr><td>'+esc(d.batterName||"\u2014")+'</td><td>'+esc(ot)+'</td><td>'+lz.label+'</td><td>'+ln+'</td></tr>';
+        });
+        html += '</table></div>';
+      }
+      if (result.batting){
+        var bb = result.batting, bballs = bb.balls, bst = statsFor(bballs);
+        html += '<div class="pr-player"><div class="pr-title">'+esc(bb.name)+' \u2014 Batting</div><div class="pr-sub">'+esc(bb.hand||"")+' &middot; All sessions combined &middot; ProCoach OS Live Session</div>';
+        html += '<div class="pr-stats">';
+        [["Total balls",bballs.length],["Runs",bst.totalRuns],["Strike rate",bst.strikeRate.toFixed(0)],["Dismissals",bst.dismissals],["Boundaries",bst.boundaries]].forEach(function(s){ html += '<div class="pr-stat"><b>'+s[1]+'</b>'+s[0]+'</div>'; });
+        html += '</div>';
+        html += '<div class="pr-charts">'+pitchSvgMarkup("dots", bballs, null, null, true)+groundSvgMarkup(bb.hand, bballs, null, null, true)+'</div>';
+        html += '<div class="pr-section-title">Length faced</div>';
+        html += printOutcomeColumnsTable(LENGTH_ZONES.map(function(z){ return { label:z.label, balls: bballs.filter(function(d){return lengthZoneFor(d.yPct).id===z.id;}) }; }));
+        var batLineLabels = bb.hand==="LHB" ? LINE_LABELS_LHB : LINE_LABELS_RHB;
+        html += '<div class="pr-section-title">Line faced</div>';
+        html += printOutcomeColumnsTable(batLineLabels.map(function(label,i){ return { label:label, balls: bballs.filter(function(d){return lineZoneIndex(d.xPct)===i;}) }; }));
+        html += '<table class="pr-table"><tr><th>Bowler</th><th>Outcome</th><th>Length</th><th>Line</th></tr>';
+        bballs.forEach(function(d){
+          var o = outcomeMap[d.outcome], lz = lengthZoneFor(d.yPct), ln = lineLabel(d.xPct, bb.hand);
+          var ot = o.label + (d.outcome==="W"&&d.dismissal?" ("+d.dismissal+")":"");
+          html += '<tr><td>'+esc(d.bowlerName||"\u2014")+'</td><td>'+esc(ot)+'</td><td>'+lz.label+'</td><td>'+ln+'</td></tr>';
+        });
+        html += '</table></div>';
+      }
+      container.innerHTML = html;
+    });
+  }
   function printReport(){
     var bowlerIds = Object.keys(state.bowlerRoster);
     var batterIds = Object.keys(state.batterRoster);
@@ -1448,15 +1568,25 @@ function attachPlayerAutocomplete(inputIds){
     setTimeout(function(){ window.print(); }, 60);
   }
 
-  render();
-  dbGetAll("bowlerprofiles").then(function(records){
-    records.forEach(function(r){ globalBowlerDirectory[r.key] = r.data; });
-  }).catch(function(){});
-  dbGetAll("scenarios").then(function(records){
-    globalScenarios = records.map(function(r){ return r.data; });
-    if (state.showScenarioPicker) render();
-  }).catch(function(){});
-  initPlayerAutocomplete(["bowler-draft-name"]);
+  if (!isPremiumUser()){
+    showPremiumLockedMessage();
+  } else {
+    var urlParams = new URLSearchParams(window.location.search);
+    var reportPlayer = urlParams.get("player");
+    if (reportPlayer){
+      renderAllTimePlayerReport(reportPlayer);
+    } else {
+      render();
+    }
+    dbGetAll("bowlerprofiles").then(function(records){
+      records.forEach(function(r){ globalBowlerDirectory[r.key] = r.data; });
+    }).catch(function(){});
+    dbGetAll("scenarios").then(function(records){
+      globalScenarios = records.map(function(r){ return r.data; });
+      if (state.showScenarioPicker) render();
+    }).catch(function(){});
+    initPlayerAutocomplete(["bowler-draft-name"]);
+  }
 })();
 </script>
 </body>

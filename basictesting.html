@@ -1389,6 +1389,187 @@ function deletePlayerGoal(playerId,goalId){
  p.goals=p.goals.filter(x=>x.id!==goalId);
  save();playerView(playerId);
 }
+// Reads PitchMap's own separate database (read-only) and aggregates
+// bowling stats for a given player by name — the analysis tools store
+// free-text names, not player IDs, so matching is name-based and best-
+// effort. Fails silently (resolves null) if anything is missing, so a
+// coach who's never used PitchMap sees nothing extra, not an error.
+function loadPitchMapStatsForPlayer(playerName){
+ return new Promise(function(resolve){
+  try{
+   var target=String(playerName||"").trim().toLowerCase();
+   if(!target){resolve(null);return}
+   var req=indexedDB.open("procoachos");
+   req.onerror=function(){resolve(null)};
+   req.onsuccess=function(){
+    try{
+     var idb=req.result;
+     if(!idb.objectStoreNames.contains("pitchsessions")){resolve(null);return}
+     var tx=idb.transaction("pitchsessions","readonly");
+     var getAllReq=tx.objectStore("pitchsessions").getAll();
+     getAllReq.onerror=function(){resolve(null)};
+     getAllReq.onsuccess=function(){
+      var records=getAllReq.result||[];
+      var OUTCOME_RUNS={dot:0,"1":1,"2":2,"3":3,"4":4,"6":6,W:0,wd:1,nb:1};
+      var sessions=0,wickets=0,runs=0,balls=0;
+      records.forEach(function(rec){
+       var data=rec&&rec.data;if(!data||!data.bowlers)return;
+       var foundInThisSession=false;
+       Object.keys(data.bowlers).forEach(function(bid){
+        var bowler=data.bowlers[bid];
+        if(!bowler||!bowler.name||bowler.name.trim().toLowerCase()!==target)return;
+        foundInThisSession=true;
+        (bowler.balls||[]).forEach(function(b){
+         if(!b||b.outcome==="_none")return;
+         balls++;
+         if(b.outcome==="W")wickets++;
+         if(OUTCOME_RUNS.hasOwnProperty(b.outcome))runs+=OUTCOME_RUNS[b.outcome];
+        });
+       });
+       if(foundInThisSession)sessions++;
+      });
+      resolve(sessions?{sessions:sessions,wickets:wickets,runs:runs,balls:balls}:null);
+     };
+    }catch(e){resolve(null)}
+   };
+  }catch(e){resolve(null)}
+ });
+}
+function loadAndRenderPitchMapStats(containerId,playerName){
+ var box=document.getElementById(containerId);
+ if(!box)return;
+ loadPitchMapStatsForPlayer(playerName).then(function(stats){
+  box=document.getElementById(containerId);if(!box)return; // page may have navigated away by now
+  if(!stats){box.style.display="none";return}
+  var overs=Math.floor(stats.balls/6)+"."+(stats.balls%6);
+  box.style.display="";
+  box.innerHTML="<h2 class=\"section\">Bowling — PitchMap</h2><div class=\"card\"><p>"+stats.sessions+" session"+(stats.sessions!==1?"s":"")+" logged &middot; "+stats.wickets+" wicket"+(stats.wickets!==1?"s":"")+" &middot; "+stats.runs+" run"+(stats.runs!==1?"s":"")+" conceded &middot; "+overs+" overs</p><a class=\"btn secondary\" style=\"margin-top:8px;display:inline-block\" href=\"pitchmap.html?player="+encodeURIComponent(playerName)+"\" target=\"_blank\">View Full Report →</a></div>";
+ });
+}
+// Same pattern as PitchMap above, reading BattingMap's own separate
+// database instead. Note the outcome-to-runs mapping is DIFFERENT here
+// on purpose — a wide or no-ball is 0 runs for the batter (it's an
+// extra credited to the team), whereas PitchMap correctly counts it as
+// 1 run conceded by the bowler. Confirmed against BattingMap's own
+// source rather than assumed from PitchMap's mapping.
+function loadBattingMapStatsForPlayer(playerName){
+ return new Promise(function(resolve){
+  try{
+   var target=String(playerName||"").trim().toLowerCase();
+   if(!target){resolve(null);return}
+   var req=indexedDB.open("procoachos");
+   req.onerror=function(){resolve(null)};
+   req.onsuccess=function(){
+    try{
+     var idb=req.result;
+     if(!idb.objectStoreNames.contains("battingsessions")){resolve(null);return}
+     var tx=idb.transaction("battingsessions","readonly");
+     var getAllReq=tx.objectStore("battingsessions").getAll();
+     getAllReq.onerror=function(){resolve(null)};
+     getAllReq.onsuccess=function(){
+      var records=getAllReq.result||[];
+      var OUTCOME_RUNS={dot:0,"1":1,"2":2,"3":3,"4":4,"6":6,W:0,wd:0,nb:0};
+      var sessions=0,dismissals=0,runs=0,balls=0;
+      records.forEach(function(rec){
+       var data=rec&&rec.data;if(!data||!data.batters)return;
+       var foundInThisSession=false;
+       Object.keys(data.batters).forEach(function(bid){
+        var batter=data.batters[bid];
+        if(!batter||!batter.name||batter.name.trim().toLowerCase()!==target)return;
+        foundInThisSession=true;
+        (batter.balls||[]).forEach(function(b){
+         if(!b||b.outcome==="_none")return;
+         balls++;
+         if(b.outcome==="W")dismissals++;
+         if(OUTCOME_RUNS.hasOwnProperty(b.outcome))runs+=OUTCOME_RUNS[b.outcome];
+        });
+       });
+       if(foundInThisSession)sessions++;
+      });
+      resolve(sessions?{sessions:sessions,dismissals:dismissals,runs:runs,balls:balls}:null);
+     };
+    }catch(e){resolve(null)}
+   };
+  }catch(e){resolve(null)}
+ });
+}
+function loadAndRenderBattingMapStats(containerId,playerName){
+ var box=document.getElementById(containerId);
+ if(!box)return;
+ loadBattingMapStatsForPlayer(playerName).then(function(stats){
+  box=document.getElementById(containerId);if(!box)return;
+  if(!stats){box.style.display="none";return}
+  var sr=stats.balls?((stats.runs/stats.balls)*100).toFixed(1):"—";
+  box.style.display="";
+  box.innerHTML="<h2 class=\"section\">Batting — BattingMap</h2><div class=\"card\"><p>"+stats.sessions+" session"+(stats.sessions!==1?"s":"")+" logged &middot; "+stats.runs+" run"+(stats.runs!==1?"s":"")+" &middot; "+stats.balls+" ball"+(stats.balls!==1?"s":"")+" faced &middot; "+stats.dismissals+" dismissal"+(stats.dismissals!==1?"s":"")+" &middot; SR "+sr+"</p><a class=\"btn secondary\" style=\"margin-top:8px;display:inline-block\" href=\"battingmap.html?player="+encodeURIComponent(playerName)+"\" target=\"_blank\">View Full Report →</a></div>";
+ });
+}
+// LiveSession stores one combined delivery per ball, stamped with BOTH
+// bowlerName and batterName — so a single read gives both roles' stats
+// at once. Important: the same wide/no-ball delivery must count 1 run
+// toward the bowler's conceded total (matching PitchMap's convention)
+// but 0 runs toward the batter's scored total (matching BattingMap's
+// convention) — confirmed deliberate, not a copy-paste of one mapping.
+function loadLiveSessionStatsForPlayer(playerName){
+ return new Promise(function(resolve){
+  try{
+   var target=String(playerName||"").trim().toLowerCase();
+   if(!target){resolve({bowling:null,batting:null});return}
+   var req=indexedDB.open("procoachos");
+   req.onerror=function(){resolve({bowling:null,batting:null})};
+   req.onsuccess=function(){
+    try{
+     var idb=req.result;
+     if(!idb.objectStoreNames.contains("livesessions")){resolve({bowling:null,batting:null});return}
+     var tx=idb.transaction("livesessions","readonly");
+     var getAllReq=tx.objectStore("livesessions").getAll();
+     getAllReq.onerror=function(){resolve({bowling:null,batting:null})};
+     getAllReq.onsuccess=function(){
+      var records=getAllReq.result||[];
+      var BOWL_RUNS={dot:0,"1":1,"2":2,"3":3,"4":4,"6":6,W:0,wd:1,nb:1};
+      var BAT_RUNS={dot:0,"1":1,"2":2,"3":3,"4":4,"6":6,W:0,wd:0,nb:0};
+      var bowlSessions={},bowlWickets=0,bowlRuns=0,bowlBalls=0;
+      var batSessions={},batDismissals=0,batRuns=0,batBalls=0;
+      records.forEach(function(rec){
+       var data=rec&&rec.data;if(!data||!Array.isArray(data.deliveries))return;
+       data.deliveries.forEach(function(d){
+        if(!d||d.outcome==="_none")return;
+        if(d.bowlerName&&d.bowlerName.trim().toLowerCase()===target){
+         bowlSessions[rec.key]=true;bowlBalls++;
+         if(d.outcome==="W")bowlWickets++;
+         if(BOWL_RUNS.hasOwnProperty(d.outcome))bowlRuns+=BOWL_RUNS[d.outcome];
+        }
+        if(d.batterName&&d.batterName.trim().toLowerCase()===target){
+         batSessions[rec.key]=true;batBalls++;
+         if(d.outcome==="W")batDismissals++;
+         if(BAT_RUNS.hasOwnProperty(d.outcome))batRuns+=BAT_RUNS[d.outcome];
+        }
+       });
+      });
+      var bowlCount=Object.keys(bowlSessions).length,batCount=Object.keys(batSessions).length;
+      resolve({
+       bowling:bowlCount?{sessions:bowlCount,wickets:bowlWickets,runs:bowlRuns,balls:bowlBalls}:null,
+       batting:batCount?{sessions:batCount,dismissals:batDismissals,runs:batRuns,balls:batBalls}:null
+      });
+     };
+    }catch(e){resolve({bowling:null,batting:null})}
+   };
+  }catch(e){resolve({bowling:null,batting:null})}
+ });
+}
+function loadAndRenderLiveSessionStats(containerId,playerName){
+ var box=document.getElementById(containerId);
+ if(!box)return;
+ loadLiveSessionStatsForPlayer(playerName).then(function(result){
+  box=document.getElementById(containerId);if(!box)return;
+  if(!result.bowling&&!result.batting){box.style.display="none";return}
+  box.style.display="";
+  var parts=[];
+  if(result.bowling){var b=result.bowling;var overs=Math.floor(b.balls/6)+"."+(b.balls%6);parts.push("<p><b>Bowling:</b> "+b.sessions+" session"+(b.sessions!==1?"s":"")+" &middot; "+b.wickets+" wicket"+(b.wickets!==1?"s":"")+" &middot; "+b.runs+" run"+(b.runs!==1?"s":"")+" conceded &middot; "+overs+" overs</p>")}
+  if(result.batting){var t=result.batting;var sr=t.balls?((t.runs/t.balls)*100).toFixed(1):"—";parts.push("<p><b>Batting:</b> "+t.sessions+" session"+(t.sessions!==1?"s":"")+" &middot; "+t.runs+" run"+(t.runs!==1?"s":"")+" &middot; "+t.balls+" ball"+(t.balls!==1?"s":"")+" faced &middot; SR "+sr+"</p>")}
+  box.innerHTML="<h2 class=\"section\">Live Session (Net Practice)</h2><div class=\"card\">"+parts.join("")+"<a class=\"btn secondary\" style=\"margin-top:8px;display:inline-block\" href=\"livesession.html?player="+encodeURIComponent(playerName)+"\" target=\"_blank\">View Full Report →</a></div>";
+ });
+}
 function playerViewBody(p){
  let assessments=playerAssessments(p);
  let latest=assessments.slice(-1)[0];
@@ -1404,11 +1585,14 @@ function playerViewBody(p){
  ${latest?`<h2 class="section">Latest assessment</h2><div class="card"><b>Overall ${assessmentAvg(latest)}/10</b><br>${assessmentDisciplines(latest).map(d=>`<span class="tag">${d} ${disciplineAvg(latest,d)}/10</span>`).join("")}</div>${assessmentDetailHTML(latest)}`:""}
  <h2 class="section">Assessment history (${assessments.length})</h2>${assessments.length?`<div class="card">${assessments.map(a=>`<div class="item"><div><b>${esc(fmtDate(a.date))}</b><div class="muted">Overall ${assessmentAvg(a)}/10</div>${a.mediaLinks&&a.mediaLinks.length?`<div style="margin-top:6px">${a.mediaLinks.map((link,i)=>`<a href="${esc(link)}" target="_blank" rel="noopener" class="tag" style="cursor:pointer">🎬 Link ${i+1}</a>`).join("")}</div>`:""}</div></div>`).join("")}</div>`:empty("No assessments yet.")}
  <h2 class="section">Session attendance (${sessions.length})</h2>${sessions.length?`<div class="card">${sessions.map(s=>`<div class="item"><div><b>${esc(sessionLabel(s))}</b><div class="muted">${esc(fmtDate(s.date))}</div></div></div>`).join("")}</div>`:empty("No recorded attendance yet.")}
- <h2 class="section">Match history (${matches.length})</h2>${matches.length?`<div class="card">${matches.map(m=>{let bat=(m.battingReview||[]).find(r=>r.name===p.name);let bowl=(m.bowlingReview||[]).find(r=>r.name===p.name);return `<div class="item"><div><b>vs ${esc(m.opp||"Opposition")}</b><div class="muted">${esc(fmtDate(m.date))}${bat?" · "+esc(bat.runs||0)+"("+esc(bat.balls||0)+")":""}${bowl?" · "+esc(bowl.wickets||0)+"/"+esc(bowl.runs||0):""}</div></div><button class="btn secondary" onclick="closeM();matchReportView('${m.id}')">Report</button></div>`}).join("")}</div>`:empty("No match entries yet.")}`;
+ <h2 class="section">Match history (${matches.length})</h2>${matches.length?`<div class="card">${matches.map(m=>{let bat=(m.battingReview||[]).find(r=>r.name===p.name);let bowl=(m.bowlingReview||[]).find(r=>r.name===p.name);return `<div class="item"><div><b>vs ${esc(m.opp||"Opposition")}</b><div class="muted">${esc(fmtDate(m.date))}${bat?" · "+esc(bat.runs||0)+"("+esc(bat.balls||0)+")":""}${bowl?" · "+esc(bowl.wickets||0)+"/"+esc(bowl.runs||0):""}</div></div><button class="btn secondary" onclick="closeM();matchReportView('${m.id}')">Report</button></div>`}).join("")}</div>`:empty("No match entries yet.")}
+ <div id="pitchmap-stats-${p.id}" style="display:none"></div>
+ <div id="battingmap-stats-${p.id}" style="display:none"></div>
+ <div id="livesession-stats-${p.id}" style="display:none"></div>`;
 }
 function playerView(id){let p=db.players.find(x=>x.id===id);if(!p)return;modal(`<div class="sheetHead"><h2>${esc(p.name)}</h2><button class="x" onclick="closeM()">×</button></div>${playerViewBody(p)}<button class="btn secondary" style="margin-top:14px" onclick="playerProfileReport('${p.id}')">Print Profile</button>
  <button class="btn secondary" style="margin-top:8px" onclick="parentSummaryReport('${p.id}')">Parent / Player Summary</button>
- <button class="btn secondary" style="margin-top:8px" onclick="compareVideos('${p.id}')">Compare Videos (Before / After)</button>`)}
+ <button class="btn secondary" style="margin-top:8px" onclick="compareVideos('${p.id}')">Compare Videos (Before / After)</button>`);loadAndRenderPitchMapStats("pitchmap-stats-"+p.id,p.name);loadAndRenderBattingMapStats("battingmap-stats-"+p.id,p.name);loadAndRenderLiveSessionStats("livesession-stats-"+p.id,p.name)}
 function compareVideos(playerId){
  let p=db.players.find(x=>x.id===playerId);if(!p)return;
  let allLinks=[];
@@ -1438,7 +1622,7 @@ function renderVideoComparison(playerId){
  <div class="card"><b>After — ${esc(fmtDate(after.date))}</b><div style="margin-top:8px"><a href="${esc(after.link)}" target="_blank" rel="noopener" class="btn secondary full">Open Video</a></div></div>
  </div>`;
 }
-function playerProfileReport(id){let p=db.players.find(x=>x.id===id);if(!p)return;reportShell(esc(p.name),`${esc(p.role||"Player")}${p.team?" · "+esc(p.team):""}`,playerViewBody(p))}
+function playerProfileReport(id){let p=db.players.find(x=>x.id===id);if(!p)return;reportShell(esc(p.name),`${esc(p.role||"Player")}${p.team?" · "+esc(p.team):""}`,playerViewBody(p));loadAndRenderPitchMapStats("pitchmap-stats-"+p.id,p.name);loadAndRenderBattingMapStats("battingmap-stats-"+p.id,p.name);loadAndRenderLiveSessionStats("livesession-stats-"+p.id,p.name)}
 // A deliberately curated, parent/player-facing summary — strengths,
 // active goals, a plain-language trend, and next focus only. No coach
 // notes, no raw per-session assessment scores, and nothing about any
@@ -2690,7 +2874,14 @@ function buildPlayerReport(){
  ${Object.entries(disciplineTrend).some(([,t])=>t.count>=2)?`<h2>Development Trend</h2><div class="card">${Object.entries(disciplineTrend).filter(([,t])=>t.count>=2).map(([d,t])=>{let diff=(t.last-t.first).toFixed(1);let sign=t.last>=t.first?"+":"";let color=t.last>=t.first?"var(--g)":"var(--red)";return `<div style="margin-bottom:6px"><b>${esc(d)}:</b> ${t.first.toFixed(1)} → ${t.last.toFixed(1)} <span style="color:${color};font-weight:700">(${sign}${diff})</span></div>`}).join("")}</div>`:""}
  ${matches.length?`<h2>Match Performance</h2><div class="card"><p>${battingEntries.length?`Batting: ${totalRuns} run${totalRuns!==1?"s":""} across ${battingEntries.length} innings`:""}${battingEntries.length&&bowlingEntries.length?" · ":""}${bowlingEntries.length?`Bowling: ${totalWickets} wicket${totalWickets!==1?"s":""} across ${bowlingEntries.length} match${bowlingEntries.length!==1?"es":""}`:""}${!battingEntries.length&&!bowlingEntries.length?`Played in ${matches.length} match${matches.length!==1?"es":""}, no batting or bowling entries logged.`:""}</p>${backToBackCount>0?`<p style="margin-top:8px;color:var(--gold)"><b>⚠ Workload note:</b> ${backToBackCount} match${backToBackCount!==1?"es":""} played with a day or less rest before the next one.</p>`:""}</div>`:""}
  ${matchTrendHtml}
- <h2>Assessment History</h2>${aa.length?aa.slice().reverse().map(a=>`<div class="card"><b>${esc(fmtDate(a.date))} · Overall ${assessmentAvg(a)}/10</b><div>${assessmentDisciplines(a).map(d=>`<span class="tag">${d} ${disciplineAvg(a,d)}/10</span>`).join("")}</div><p><b>Priority:</b> ${esc(a.priority||"—")}</p>${assessmentDetailHTML(a)}</div>`).join(""):empty("No assessments for this player.")}`)}
+ <h2>Assessment History</h2>${aa.length?aa.slice().reverse().map(a=>`<div class="card"><b>${esc(fmtDate(a.date))} · Overall ${assessmentAvg(a)}/10</b><div>${assessmentDisciplines(a).map(d=>`<span class="tag">${d} ${disciplineAvg(a,d)}/10</span>`).join("")}</div><p><b>Priority:</b> ${esc(a.priority||"—")}</p>${assessmentDetailHTML(a)}</div>`).join(""):empty("No assessments for this player.")}
+ <div id="pitchmap-stats-report-${p.id}" style="display:none"></div>
+ <div id="battingmap-stats-report-${p.id}" style="display:none"></div>
+ <div id="livesession-stats-report-${p.id}" style="display:none"></div>`);
+ loadAndRenderPitchMapStats("pitchmap-stats-report-"+p.id,p.name);
+ loadAndRenderBattingMapStats("battingmap-stats-report-"+p.id,p.name);
+ loadAndRenderLiveSessionStats("livesession-stats-report-"+p.id,p.name);
+}
 function seasonReport(){scopeAndRangeModal("Season / Full Report","buildSeasonReport")}
 function buildSeasonReport(){
  let scope=scopeValues();

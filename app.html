@@ -1443,7 +1443,7 @@ function loadAndRenderPitchMapStats(containerId,playerName){
   if(!stats){box.style.display="none";return}
   var overs=Math.floor(stats.balls/6)+"."+(stats.balls%6);
   box.style.display="";
-  box.innerHTML="<h2 class=\"section\">Bowling — PitchMap</h2><div class=\"card\"><p>"+stats.sessions+" session"+(stats.sessions!==1?"s":"")+" logged &middot; "+stats.wickets+" wicket"+(stats.wickets!==1?"s":"")+" &middot; "+stats.runs+" run"+(stats.runs!==1?"s":"")+" conceded &middot; "+overs+" overs</p></div>";
+  box.innerHTML="<h2 class=\"section\">Bowling — PitchMap</h2><div class=\"card\"><p>"+stats.sessions+" session"+(stats.sessions!==1?"s":"")+" logged &middot; "+stats.wickets+" wicket"+(stats.wickets!==1?"s":"")+" &middot; "+stats.runs+" run"+(stats.runs!==1?"s":"")+" conceded &middot; "+overs+" overs</p><a class=\"btn secondary\" style=\"margin-top:8px;display:inline-block\" href=\"pitchmap.html?player="+encodeURIComponent(playerName)+"\" target=\"_blank\">View Full Report →</a></div>";
  });
 }
 // Same pattern as PitchMap above, reading BattingMap's own separate
@@ -1501,7 +1501,7 @@ function loadAndRenderBattingMapStats(containerId,playerName){
   if(!stats){box.style.display="none";return}
   var sr=stats.balls?((stats.runs/stats.balls)*100).toFixed(1):"—";
   box.style.display="";
-  box.innerHTML="<h2 class=\"section\">Batting — BattingMap</h2><div class=\"card\"><p>"+stats.sessions+" session"+(stats.sessions!==1?"s":"")+" logged &middot; "+stats.runs+" run"+(stats.runs!==1?"s":"")+" &middot; "+stats.balls+" ball"+(stats.balls!==1?"s":"")+" faced &middot; "+stats.dismissals+" dismissal"+(stats.dismissals!==1?"s":"")+" &middot; SR "+sr+"</p></div>";
+  box.innerHTML="<h2 class=\"section\">Batting — BattingMap</h2><div class=\"card\"><p>"+stats.sessions+" session"+(stats.sessions!==1?"s":"")+" logged &middot; "+stats.runs+" run"+(stats.runs!==1?"s":"")+" &middot; "+stats.balls+" ball"+(stats.balls!==1?"s":"")+" faced &middot; "+stats.dismissals+" dismissal"+(stats.dismissals!==1?"s":"")+" &middot; SR "+sr+"</p><a class=\"btn secondary\" style=\"margin-top:8px;display:inline-block\" href=\"battingmap.html?player="+encodeURIComponent(playerName)+"\" target=\"_blank\">View Full Report →</a></div>";
  });
 }
 // LiveSession stores one combined delivery per ball, stamped with BOTH
@@ -1567,7 +1567,7 @@ function loadAndRenderLiveSessionStats(containerId,playerName){
   var parts=[];
   if(result.bowling){var b=result.bowling;var overs=Math.floor(b.balls/6)+"."+(b.balls%6);parts.push("<p><b>Bowling:</b> "+b.sessions+" session"+(b.sessions!==1?"s":"")+" &middot; "+b.wickets+" wicket"+(b.wickets!==1?"s":"")+" &middot; "+b.runs+" run"+(b.runs!==1?"s":"")+" conceded &middot; "+overs+" overs</p>")}
   if(result.batting){var t=result.batting;var sr=t.balls?((t.runs/t.balls)*100).toFixed(1):"—";parts.push("<p><b>Batting:</b> "+t.sessions+" session"+(t.sessions!==1?"s":"")+" &middot; "+t.runs+" run"+(t.runs!==1?"s":"")+" &middot; "+t.balls+" ball"+(t.balls!==1?"s":"")+" faced &middot; SR "+sr+"</p>")}
-  box.innerHTML="<h2 class=\"section\">Live Session (Net Practice)</h2><div class=\"card\">"+parts.join("")+"</div>";
+  box.innerHTML="<h2 class=\"section\">Live Session (Net Practice)</h2><div class=\"card\">"+parts.join("")+"<a class=\"btn secondary\" style=\"margin-top:8px;display:inline-block\" href=\"livesession.html?player="+encodeURIComponent(playerName)+"\" target=\"_blank\">View Full Report →</a></div>";
  });
 }
 function playerViewBody(p){
