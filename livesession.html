@@ -493,6 +493,7 @@ function attachPlayerAutocomplete(inputIds){
     pendingDelivery: null, // stage: 'mark-pitch' -> 'awaiting-shot' -> 'shot-type' -> 'outcome' -> 'dismissal'
     viewMode: "dots",
     showBowlerEditor: false, editingBowlerId: null, bowlerDraft: null,
+    showBatterAdder: false, batterAdderDraft: "",
     chase: null, // {targetRuns, targetOvers} — whole-session chase target
     showChaseSetup: false,
     conditions: { weather:"", pitch:"" },
@@ -885,6 +886,14 @@ function attachPlayerAutocomplete(inputIds){
       html += '</div></div></div>';
     }
 
+    if (state.showBatterAdder){
+      html += '<div class="pm-modal-backdrop"><div class="pm-modal">';
+      html += '<div class="pm-panel-title">Add Batter(s)</div>';
+      html += '<div class="pm-bowler-editor-row"><div class="pm-label">Name</div><input class="pm-input" id="batter-adder-input" placeholder="Batter name, or several separated by commas" value="'+esc(state.batterAdderDraft)+'"></div>';
+      html += '<div class="pm-btn-row"><button class="pm-btn" data-action="save-batter-adder">Add</button><button class="pm-btn secondary" data-action="close-batter-adder">Cancel</button></div>';
+      html += '</div></div>';
+    }
+
     if (state.showChaseSetup){
       html += '<div class="pm-modal-backdrop"><div class="pm-modal">';
       html += '<div class="pm-panel-title">Target chase</div>';
@@ -964,6 +973,7 @@ function attachPlayerAutocomplete(inputIds){
       });
       attachPlayerAutocomplete(["bowler-draft-name"]);
     }
+    attachPlayerAutocomplete(["batter-adder-input"]);
 
     if (canStart && pd && pd.stage==="mark-pitch"){
       var svg2 = document.getElementById("pitch-svg2");
@@ -1074,14 +1084,20 @@ function attachPlayerAutocomplete(inputIds){
     if (action==="select-bowler"){ state.currentBowlerId = el.getAttribute("data-id"); render(); }
     else if (action==="select-batter"){ state.currentBatterId = el.getAttribute("data-id"); render(); }
     else if (action==="add-batter"){
-      var name = window.prompt("Batter name? (add several at once separated by commas)", "");
-      if (name===null) return;
-      var names = name.split(",").map(function(n){return n.trim();}).filter(function(n){return n;});
-      if (names.length===0) return;
+      state.batterAdderDraft = "";
+      state.showBatterAdder = true; render();
+    }
+    else if (action==="save-batter-adder"){
+      var inputEl = document.getElementById("batter-adder-input");
+      var rawName = inputEl ? inputEl.value : "";
+      var names = rawName.split(",").map(function(n){return n.trim();}).filter(function(n){return n;});
+      if (names.length===0){ state.showBatterAdder = false; render(); return; }
       var lastId = null;
       names.forEach(function(n){ var id = uid(); state.batterRoster[id] = { name:n, hand:"RHB" }; lastId = id; });
-      state.currentBatterId = lastId; render();
+      state.currentBatterId = lastId;
+      state.showBatterAdder = false; render();
     }
+    else if (action==="close-batter-adder"){ state.showBatterAdder = false; render(); }
     else if (action==="set-hand"){ if (curBatter()) curBatter().hand = el.getAttribute("data-hand"); render(); }
     else if (action==="open-bowler-editor"){
       var editId = el.getAttribute("data-id") || null;
