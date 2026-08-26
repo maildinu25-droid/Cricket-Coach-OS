@@ -364,6 +364,7 @@
       <button data-role-gate="assistant_coach" data-panel="panel-fees"><span class="navIcon"><svg viewBox="0 0 21 21" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="5" width="16" height="11" rx="2"/><line x1="2.5" y1="9" x2="18.5" y2="9"/><line x1="5.5" y1="12.5" x2="9" y2="12.5"/></svg></span>Fees</button>
 
       <div class="navGroupLabel">Settings</div>
+      <button data-panel="panel-branches" data-role-gate="admin"><span class="navIcon"><svg viewBox="0 0 21 21" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10.5 18.5S3.5 12.3 3.5 8a7 7 0 0 1 14 0c0 4.3-7 10.5-7 10.5z"/><circle cx="10.5" cy="8" r="2.5"/></svg></span>Branches</button>
       <button data-panel="panel-members" data-role-gate="admin"><span class="navIcon"><svg viewBox="0 0 21 21" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="7" cy="7.5" r="3"/><circle cx="15" cy="8" r="2.5"/><path d="M2 18c0-3 2.2-5 5-5s5 2 5 5"/><path d="M12.5 13.3c2.3.3 3.9 2 3.9 4.7"/></svg></span>Members &amp; Roles</button>
       <button data-panel="panel-branding" data-role-gate="admin"><span class="navIcon"><svg viewBox="0 0 21 21" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10.5 2.5a8 8 0 1 0 0 16c1.2 0 1.8-.8 1.8-1.8 0-.5-.2-.9-.5-1.2-.3-.3-.5-.7-.5-1.2 0-1 .8-1.8 1.8-1.8h1.7c1.8 0 3.2-1.4 3.2-3.2 0-3.8-3.8-6.8-7.5-6.8z"/><circle cx="6.5" cy="9" r="1" fill="currentColor"/><circle cx="9" cy="6" r="1" fill="currentColor"/><circle cx="13" cy="7" r="1" fill="currentColor"/></svg></span>Academy Settings</button>
       <button data-panel="panel-subscription" data-role-gate="admin"><span class="navIcon"><svg viewBox="0 0 21 21" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="5" width="16" height="12" rx="2"/><line x1="2.5" y1="9" x2="18.5" y2="9"/><line x1="5.5" y1="13" x2="9.5" y2="13"/></svg></span>Subscription</button>
@@ -754,6 +755,22 @@
       <div class="note">Workload shows sessions/matches/assessments logged by each coach in the last 30 days. Qualifications, availability, and notes are editable by admins only, but visible to head coach and above — same visibility tier as the Activity log.</div>
     </div>
 
+    <!-- BRANCHES -->
+    <div class="panel" id="panel-branches">
+      <h2>Branches</h2>
+      <p style="color:var(--text-dim); font-size:13px; margin-top:-8px;">For academies running multiple locations. Assign each team to a branch to see Dashboard and reports split by location.</p>
+      <div class="form-card" id="branch-add-form">
+        <input type="text" id="branch-name" placeholder="Branch name (e.g. Whitefield)">
+        <input type="text" id="branch-address" placeholder="Address (optional)">
+        <textarea id="branch-notes" placeholder="Notes (optional)"></textarea>
+        <div class="panelToolbar" style="margin-bottom:0;">
+          <button class="btn small" id="save-branch-btn">Add branch</button>
+          <button class="btn small ghost" id="cancel-branch-btn" style="display:none;">Cancel</button>
+        </div>
+      </div>
+      <div id="branches-list"></div>
+    </div>
+
     <!-- MEMBERS -->
     <div class="panel" id="panel-members">
       <h2>Members &amp; Roles</h2>
@@ -844,6 +861,7 @@
           <optgroup label="Overview">
             <option value="full-overview">Full academy overview</option>
             <option value="team-comparison">Team comparison (all teams)</option>
+            <option value="branch-summary">Branch summary (all locations)</option>
             <option value="trends-analytics">Trends &amp; analytics (6 months)</option>
           </optgroup>
           <optgroup label="Players &amp; Teams">
@@ -1029,7 +1047,7 @@ const SUPABASE_URL = 'https://tjcrpnwmaadfcvdbthaz.supabase.co';
 // instead of silently staying stale. version.json must be redeployed
 // alongside this file on every future update, with a matching bump to
 // APP_BUILD_VERSION below — these two must always move together.
-const APP_BUILD_VERSION = '2026-08-26-05:47';
+const APP_BUILD_VERSION = '2026-08-26-07:14';
 async function checkForUpdate() {
   try {
     const res = await fetch('./version.json', { cache: 'no-store' });
@@ -1171,7 +1189,7 @@ document.addEventListener('click', (e) => {
   btn._lastClick = now;
 }, true);
 
-const cache = { teams: [], players: [], drills: [], tournaments: [], seasons: [], sessions: [], matches: [], assessments: [], assessmentTemplates: [], analysisRecords: [], analysisToolLinks: [], savedReports: [], reflections: [], devPlans: [], feeInvoices: [] };
+const cache = { teams: [], players: [], drills: [], tournaments: [], seasons: [], sessions: [], matches: [], assessments: [], assessmentTemplates: [], analysisRecords: [], analysisToolLinks: [], savedReports: [], reflections: [], devPlans: [], feeInvoices: [], branches: [] };
 const editing = {}; // entity -> id currently being edited, or null
 
 function esc(str) { const d = document.createElement('div'); d.textContent = str ?? ''; return d.innerHTML; }
@@ -1480,7 +1498,7 @@ const panelLoaders = {
   'panel-sessions': loadSessions, 'panel-matches': loadMatches,
   'panel-assessments': loadAssessments, 'panel-analysis': loadAnalysis, 'panel-reflections': loadReflections,
   'panel-development': loadDevelopmentPanel, 'panel-testing': loadTestingPanel,
-  'panel-equipment': loadEquipment, 'panel-facilities': loadFacilities, 'panel-fees': loadFees,
+  'panel-equipment': loadEquipment, 'panel-facilities': loadFacilities, 'panel-fees': loadFees, 'panel-branches': loadBranches,
   'panel-activity': loadActivity, 'panel-alerts': loadSmartAlerts, 'panel-reports': loadReportsPanel,
   'panel-coaches': loadCoachesPanel, 'panel-members': loadMembers, 'panel-profile': loadProfile,
   'panel-branding': loadBranding, 'panel-subscription': loadSubscription, 'panel-platform-admin': loadPlatformAdmin,
@@ -2713,7 +2731,7 @@ async function loadTeamsSeasons() {
 async function loadTeams() {
   const gridEl = document.getElementById('teams-grid');
   gridEl.innerHTML = '<div class="empty-state">Loading...</div>';
-  const { data, error } = await supabase.from('teams').select('id, name, category, notes, captain_id, vice_captain_id').eq('org_id', currentOrgId).order('name');
+  const { data, error } = await supabase.from('teams').select('id, name, category, notes, captain_id, vice_captain_id, branch_id').eq('org_id', currentOrgId).order('name');
   if (error) { gridEl.innerHTML = `<div class="empty-state">${error.message}</div>`; return; }
   cache.teams = data || [];
   document.getElementById('add-team-toolbar').style.display = roleAtLeast('head_coach') ? '' : 'none';
@@ -2772,13 +2790,15 @@ function teamFormHtml(t) {
     <div class="formgrid">
       <label class="full">Team name<input id="sheet-team-name" value="${esc(t?.name || '')}"></label>
       <label>Category<input id="sheet-team-category" value="${esc(t?.category || '')}" placeholder="e.g. U14"></label>
+      ${cache.branches.length ? `<label>Branch <span class="muted" style="font-weight:400;">(optional)</span><select id="sheet-team-branch"><option value="">No branch</option>${cache.branches.map(b => `<option value="${b.id}" ${t?.branch_id === b.id ? 'selected' : ''}>${esc(b.name)}</option>`).join('')}</select></label>` : ''}
       ${t ? `<label>Captain<select id="sheet-team-captain">${playerOpts(t?.captain_id)}</select></label>
       <label>Vice-captain<select id="sheet-team-vice-captain">${playerOpts(t?.vice_captain_id)}</select></label>` : `<div class="note full">Save the team first, then edit it to set a captain and vice-captain from its players.</div>`}
       <label class="full">Notes<textarea id="sheet-team-notes">${esc(t?.notes || '')}</textarea></label>
     </div>
     <button class="btn primary" id="sheet-save-team-btn" style="margin-top:14px; width:auto;">${t ? 'Save changes' : 'Add team'}</button>`;
 }
-function openTeamForm(t) {
+async function openTeamForm(t) {
+  if (!cache.branches.length) { const { data } = await supabase.from('branches').select('*').eq('org_id', currentOrgId).order('name'); cache.branches = data || []; }
   editing.teams = t ? t.id : null;
   openSheet(teamFormHtml(t));
   document.getElementById('sheet-save-team-btn').addEventListener('click', async () => {
@@ -2786,6 +2806,7 @@ function openTeamForm(t) {
     if (!name) { showToast('Team name is required.', 'error'); return; }
     if (!editing.teams && planLimitReached('max_teams', cache.teams.length)) { showToast(upgradeMessage('max_teams'), 'error'); return; }
     const row = { org_id: currentOrgId, name, category: document.getElementById('sheet-team-category').value.trim() || null, notes: document.getElementById('sheet-team-notes').value.trim() || null };
+    if (cache.branches.length) row.branch_id = document.getElementById('sheet-team-branch').value || null;
     if (t) {
       row.captain_id = document.getElementById('sheet-team-captain').value || null;
       row.vice_captain_id = document.getElementById('sheet-team-vice-captain').value || null;
@@ -4821,7 +4842,7 @@ function applyDateRange(query, from, to) {
 }
 
 const REPORT_CONTROLS = {
-  'full-overview': { daterange: true }, 'team-comparison': { daterange: true },
+  'full-overview': { daterange: true }, 'team-comparison': { daterange: true }, 'branch-summary': { daterange: true },
   'trends-analytics': {},
   'team-report': { daterange: true, team: true }, 'player-development': { player: true }, 'analysis-summary': { player: true },
   'attendance-report': { daterange: true, team: true }, 'assessment-report': { daterange: true, player: true, team: true },
@@ -4870,7 +4891,7 @@ async function loadReportsPanel() {
 }
 document.getElementById('run-report-btn').addEventListener('click', async () => {
   const runners = {
-    'full-overview': runFullOverviewReport, 'team-comparison': runTeamComparisonReport,
+    'full-overview': runFullOverviewReport, 'team-comparison': runTeamComparisonReport, 'branch-summary': runBranchSummaryReport,
     'trends-analytics': runTrendsAnalyticsReport,
     'team-report': runTeamReport, 'player-development': runPlayerDevelopmentReport, 'analysis-summary': runAnalysisSummaryReport,
     'attendance-report': runAttendanceReport, 'assessment-report': runAssessmentReport,
@@ -4971,6 +4992,35 @@ async function runTeamComparisonReport() {
 
   if (!rows.length) { outputEl.innerHTML = '<div class="empty-state">No teams yet.</div>'; return; }
   outputEl.innerHTML = rows.map(r => `<div class="list-item"><span>${esc(r.team)}</span><span class="role-tag">${r.players} players · ${r.sessions} sessions · ${r.matches} matches (${r.w}W-${r.l}L-${r.d}D)</span></div>`).join('');
+}
+
+async function runBranchSummaryReport() {
+  const outputEl = document.getElementById('report-output');
+  outputEl.innerHTML = '<div class="empty-state">Generating...</div>';
+  const { data: branches, error: branchErr } = await supabase.from('branches').select('*').eq('org_id', currentOrgId).order('name');
+  if (branchErr) { reportError(branchErr, 'Branch Summary'); outputEl.innerHTML = '<div class="empty-state">Could not load.</div>'; return; }
+  if (!branches || !branches.length) { outputEl.innerHTML = '<div class="empty-state">No branches set up yet — add branches under Settings, then assign teams to them, to see this report.</div>'; return; }
+
+  const { from, to } = reportDateRange();
+  const branchGroups = [...branches, { id: null, name: 'Unassigned (no branch set)' }];
+
+  const rows = await Promise.all(branchGroups.map(async b => {
+    const teamsHere = cache.teams.filter(t => (t.branch_id || null) === b.id);
+    if (!teamsHere.length) return { branch: b.name, teams: 0, players: 0, sessions: 0, matches: 0, w: 0, l: 0, d: 0 };
+    const teamIds = teamsHere.map(t => t.id);
+    const [pRes, sRes, mRes] = await Promise.all([
+      supabase.from('players').select('id', { count: 'exact', head: true }).eq('org_id', currentOrgId).in('team_id', teamIds),
+      applyDateRange(supabase.from('sessions').select('id', { count: 'exact', head: true }).eq('org_id', currentOrgId).in('team_id', teamIds), from, to),
+      applyDateRange(supabase.from('matches').select('result').eq('org_id', currentOrgId).in('team_id', teamIds), from, to),
+    ]);
+    const results = (mRes.data || []).map(m => classifyResult(m.result));
+    const w = results.filter(r => r === 'win').length, l = results.filter(r => r === 'loss').length, d = results.filter(r => r === 'draw').length;
+    return { branch: b.name, teams: teamsHere.length, players: pRes.count ?? 0, sessions: sRes.count ?? 0, matches: (mRes.data || []).length, w, l, d };
+  }));
+
+  const visibleRows = rows.filter(r => r.teams > 0);
+  if (!visibleRows.length) { outputEl.innerHTML = '<div class="empty-state">No teams assigned to any branch yet.</div>'; return; }
+  outputEl.innerHTML = visibleRows.map(r => `<div class="itemCard"><div class="itemMain"><b>${esc(r.branch)}</b><div class="muted">${r.teams} team${r.teams === 1 ? '' : 's'} · ${r.players} players · ${r.sessions} sessions · ${r.matches} matches (${r.w}W-${r.l}L-${r.d}D)</div></div></div>`).join('');
 }
 
 async function runTrendsAnalyticsReport() {
@@ -5767,6 +5817,53 @@ document.getElementById('save-facility-btn').addEventListener('click', async () 
   if (error) { showToast(error.message, 'error'); return; }
   document.getElementById('cancel-facility-btn').click();
   loadFacilities();
+});
+
+// ============================================================
+// BRANCHES — admin-only, matching the pricing-level restriction on
+// fee_structures rather than the head_coach level facilities/equipment
+// use, since branch structure is a business decision, not day-to-day work.
+async function loadBranches() {
+  document.getElementById('branch-add-form').style.display = roleAtLeast('admin') ? 'block' : 'none';
+  const listEl = document.getElementById('branches-list');
+  listEl.innerHTML = '<div class="empty-state">Loading...</div>';
+  const { data, error } = await supabase.from('branches').select('*').eq('org_id', currentOrgId).order('name');
+  if (error) { listEl.innerHTML = `<div class="empty-state">${error.message}</div>`; return; }
+  if (!data.length) { listEl.innerHTML = '<div class="empty-state">No branches yet — every team stays unassigned (treated as one location) until you add some.</div>'; return; }
+  cache.branches = data;
+  renderPagedList(listEl, data, b => listRow(`${esc(b.name)}${b.address ? ` <span style="color:var(--text-dim); font-size:12px;">· ${esc(b.address)}</span>` : ''}`, '',
+    roleAtLeast('admin') ? () => editBranch(b) : null,
+    roleAtLeast('admin') ? async () => { if (!confirmDelete(b.name)) return; await supabase.from('branches').delete().eq('id', b.id); loadBranches(); } : null
+  ));
+}
+function editBranch(b) {
+  editing.branches = b.id;
+  document.getElementById('branch-name').value = b.name;
+  document.getElementById('branch-address').value = b.address || '';
+  document.getElementById('branch-notes').value = b.notes || '';
+  document.getElementById('save-branch-btn').textContent = 'Save changes';
+  document.getElementById('cancel-branch-btn').style.display = 'inline-block';
+}
+document.getElementById('cancel-branch-btn').addEventListener('click', () => {
+  editing.branches = null;
+  ['branch-name', 'branch-address', 'branch-notes'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('save-branch-btn').textContent = 'Add branch';
+  document.getElementById('cancel-branch-btn').style.display = 'none';
+});
+document.getElementById('save-branch-btn').addEventListener('click', async () => {
+  const name = document.getElementById('branch-name').value.trim();
+  if (!name) return;
+  const row = {
+    org_id: currentOrgId, name,
+    address: document.getElementById('branch-address').value.trim() || null,
+    notes: document.getElementById('branch-notes').value.trim() || null,
+  };
+  const { error } = editing.branches
+    ? await supabase.from('branches').update(row).eq('id', editing.branches)
+    : await supabase.from('branches').insert(row);
+  if (error) { showToast(error.message, 'error'); return; }
+  document.getElementById('cancel-branch-btn').click();
+  loadBranches();
 });
 
 // ============================================================
