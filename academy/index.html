@@ -898,6 +898,10 @@
           <label class="field-label">Month</label>
           <input type="month" id="report-month" style="max-width:200px;">
         </div>
+        <div id="report-branch-row" style="display:none; margin-top:10px;">
+          <label class="field-label">Branch <span class="muted" style="font-weight:400;">(narrows the team list below; for reports without a required single team, also rolls up across the whole branch)</span></label>
+          <select id="report-branch-filter"><option value="">All branches</option></select>
+        </div>
         <div id="report-team-row" style="display:none; margin-top:10px;">
           <label class="field-label">Team</label>
           <select id="report-team-filter"><option value="">All teams</option></select>
@@ -1049,7 +1053,7 @@ const SUPABASE_URL = 'https://tjcrpnwmaadfcvdbthaz.supabase.co';
 // instead of silently staying stale. version.json must be redeployed
 // alongside this file on every future update, with a matching bump to
 // APP_BUILD_VERSION below — these two must always move together.
-const APP_BUILD_VERSION = '2026-08-26-07:42';
+const APP_BUILD_VERSION = '2026-08-26-08:56';
 async function checkForUpdate() {
   try {
     const res = await fetch('./version.json', { cache: 'no-store' });
@@ -2546,6 +2550,7 @@ async function openPlayerProfile(playerId) {
   const contentEl = document.getElementById('player-profile-content');
   contentEl.innerHTML = '<div class="empty-state">Loading...</div>';
   if (!cache.teams.length) await loadTeams();
+  if (!cache.branches.length) { const { data: branchData } = await supabase.from('branches').select('*').eq('org_id', currentOrgId).order('name'); cache.branches = branchData || []; }
 
   const { data: player, error } = await supabase.from('players').select('*').eq('id', playerId).single();
   if (error || !player) { contentEl.innerHTML = '<div class="empty-state">Could not load this player.</div>'; return; }
@@ -2591,7 +2596,8 @@ async function openPlayerProfile(playerId) {
 
 
   let html = `<h2>${esc(player.name)}</h2>`;
-  html += `<div class="note" style="max-width:520px;">${esc(player.role || '—')} · ${esc(nameById(cache.teams, player.team_id))}${player.age ? ' · Age ' + player.age : ''}${player.group ? ' · ' + esc(player.group) : ''}${player.available === false ? ' · Unavailable' : ''}${player.status && player.status !== 'active' ? ' · ' + esc(player.status[0].toUpperCase() + player.status.slice(1)) : ''}</div>`;
+  const playerBranchName = (() => { const t = cache.teams.find(t => t.id === player.team_id); const b = t && cache.branches.find(b => b.id === t.branch_id); return b ? b.name : null; })();
+  html += `<div class="note" style="max-width:520px;">${esc(player.role || '—')} · ${esc(nameById(cache.teams, player.team_id))}${playerBranchName ? ' · ' + esc(playerBranchName) : ''}${player.age ? ' · Age ' + player.age : ''}${player.group ? ' · ' + esc(player.group) : ''}${player.available === false ? ' · Unavailable' : ''}${player.status && player.status !== 'active' ? ' · ' + esc(player.status[0].toUpperCase() + player.status.slice(1)) : ''}</div>`;
   const bioBits = [player.date_of_birth ? 'Born ' + player.date_of_birth : null, player.joining_date ? 'Joined ' + player.joining_date : null].filter(Boolean);
   if (bioBits.length) html += `<p style="color:var(--text-dim); font-size:13px;">${esc(bioBits.join(' · '))}</p>`;
 
@@ -4650,12 +4656,12 @@ async function loadSmartAlerts() {
 async function fetchMyPortalPlayers() {
   const role = currentRole();
   if (role === 'player') {
-    const { data, error } = await supabase.from('players').select('*, teams(name)').eq('linked_user_id', session.user.id).eq('org_id', currentOrgId);
+    const { data, error } = await supabase.from('players').select('*, teams(name, branches(name))').eq('linked_user_id', session.user.id).eq('org_id', currentOrgId);
     if (error) { reportError(error, 'My Portal'); return []; }
     return data || [];
   }
   if (role === 'parent') {
-    const { data, error } = await supabase.from('player_guardians').select('players(*, teams(name))').eq('user_id', session.user.id).eq('org_id', currentOrgId);
+    const { data, error } = await supabase.from('player_guardians').select('players(*, teams(name, branches(name)))').eq('user_id', session.user.id).eq('org_id', currentOrgId);
     if (error) { reportError(error, 'My Portal'); return []; }
     return (data || []).map(d => d.players).filter(Boolean);
   }
@@ -4695,7 +4701,7 @@ async function renderMyDashboardFor(player) {
   const latestAssess = (assessRes.data || [])[0];
   const avgRating = latestAssess ? assessmentAvg(latestAssess) : null;
 
-  let html = `<div class="entityCard"><b>${esc(player.name)}</b><div class="muted">${esc(player.teams?.name || '—')}${player.role ? ' · ' + esc(player.role) : ''}</div></div>`;
+  let html = `<div class="entityCard"><b>${esc(player.name)}</b><div class="muted">${esc(player.teams?.name || '—')}${player.teams?.branches?.name ? ' · ' + esc(player.teams.branches.name) : ''}${player.role ? ' · ' + esc(player.role) : ''}</div></div>`;
   html += '<div class="sectionHeading">Next 7 days</div>';
   html += upcoming.length ? upcoming.map(u => `<div class="list-item"><span>${esc(u.label)}</span><span class="role-tag">${esc(u.date)}</span></div>`).join('') : '<div class="empty-state">Nothing scheduled.</div>';
   html += '<div class="sectionHeading">Latest assessment</div>';
@@ -4842,6 +4848,19 @@ function applyDateRange(query, from, to) {
   if (to) query = query.lte('date', to);
   return query;
 }
+// Resolves what a report's team filter actually means once branch is
+// factored in: a specific team wins if chosen; otherwise a chosen
+// branch expands to every team under it; otherwise null means no
+// filtering at all. Only meaningful for reports where team was always
+// an optional filter — team-report and attendance-report require a
+// single specific team by design and don't use this.
+function resolveReportTeamIds() {
+  const teamFilter = document.getElementById('report-team-filter').value;
+  if (teamFilter) return [teamFilter];
+  const branchFilter = document.getElementById('report-branch-filter')?.value;
+  if (branchFilter) return cache.teams.filter(t => t.branch_id === branchFilter).map(t => t.id);
+  return null;
+}
 
 const REPORT_CONTROLS = {
   'full-overview': { daterange: true }, 'team-comparison': { daterange: true }, 'branch-summary': { daterange: true },
@@ -4858,6 +4877,7 @@ function updateReportControlVisibility() {
   document.getElementById('report-daterange-row').style.display = cfg.daterange ? 'flex' : 'none';
   document.getElementById('report-month-row').style.display = cfg.month ? 'block' : 'none';
   document.getElementById('report-team-row').style.display = cfg.team ? 'block' : 'none';
+  document.getElementById('report-branch-row').style.display = cfg.team && cache.branches.length ? 'block' : 'none';
   document.getElementById('report-player-row').style.display = cfg.player ? 'block' : 'none';
   document.getElementById('report-tournament-row').style.display = cfg.tournament ? 'block' : 'none';
   document.getElementById('report-season-row').style.display = cfg.season ? 'block' : 'none';
@@ -4868,8 +4888,15 @@ document.getElementById('report-type').addEventListener('change', updateReportCo
 async function loadReportsPanel() {
   if (!cache.teams.length) await loadTeams();
   if (!cache.players.length) await loadPlayers();
+  if (!cache.branches.length) { const { data: branchData } = await supabase.from('branches').select('*').eq('org_id', currentOrgId).order('name'); cache.branches = branchData || []; }
   fillSelect(document.getElementById('report-team-filter'), cache.teams, 'All teams');
   fillSelect(document.getElementById('report-player-filter'), cache.players, 'All players');
+  fillSelect(document.getElementById('report-branch-filter'), cache.branches, 'All branches');
+  document.getElementById('report-branch-filter').addEventListener('change', (e) => {
+    const branchId = e.target.value;
+    const teamsForBranch = branchId ? cache.teams.filter(t => t.branch_id === branchId) : cache.teams;
+    fillSelect(document.getElementById('report-team-filter'), teamsForBranch, 'All teams');
+  });
 
   const { data: tournaments, error: tErr } = await supabase.from('tournaments').select('id, name').eq('org_id', currentOrgId).order('name');
   if (tErr) reportError(tErr, 'Reports (tournaments)');
@@ -5103,18 +5130,19 @@ async function runMatchResultsReport() {
   const outputEl = document.getElementById('report-output');
   outputEl.innerHTML = '<div class="empty-state">Generating...</div>';
   const { from, to } = reportDateRange();
-  const teamFilter = document.getElementById('report-team-filter').value;
+  const teamIds = resolveReportTeamIds();
 
   let query = supabase.from('matches').select('result, team_id').eq('org_id', currentOrgId);
   query = applyDateRange(query, from, to);
-  if (teamFilter) query = query.eq('team_id', teamFilter);
+  if (teamIds) query = query.in('team_id', teamIds);
   const { data, error } = await query;
   if (error) { outputEl.innerHTML = `<div class="empty-state">${error.message}</div>`; return; }
   if (!data.length) { outputEl.innerHTML = '<div class="empty-state">No matches in this range.</div>'; return; }
 
   const byTeam = {};
+  const isSingleTeam = teamIds && teamIds.length === 1;
   for (const m of data) {
-    const key = teamFilter ? 'all' : (m.team_id || 'unknown');
+    const key = isSingleTeam ? 'all' : (m.team_id || 'unknown');
     byTeam[key] ||= { w: 0, l: 0, d: 0, total: 0 };
     byTeam[key].total++;
     const outcome = classifyResult(m.result);
@@ -5123,7 +5151,7 @@ async function runMatchResultsReport() {
     else if (outcome === 'draw') byTeam[key].d++;
   }
   outputEl.innerHTML = Object.entries(byTeam).map(([key, stats]) => {
-    const label = teamFilter ? nameById(cache.teams, teamFilter) : nameById(cache.teams, key);
+    const label = isSingleTeam ? nameById(cache.teams, teamIds[0]) : nameById(cache.teams, key);
     const winPct = stats.total ? Math.round((stats.w / stats.total) * 100) : 0;
     return `<div class="list-item"><span>${esc(label)}</span><span class="role-tag">${stats.total} matches · ${stats.w}W-${stats.l}L-${stats.d}D · ${winPct}% win rate</span></div>`;
   }).join('');
@@ -5247,11 +5275,11 @@ async function runSessionReport() {
   const outputEl = document.getElementById('report-output');
   outputEl.innerHTML = '<div class="empty-state">Generating...</div>';
   const { from, to } = reportDateRange();
-  const teamFilter = document.getElementById('report-team-filter').value;
+  const teamIds = resolveReportTeamIds();
 
   let query = supabase.from('sessions').select('date, title, session_type, duration, team_id').eq('org_id', currentOrgId);
   query = applyDateRange(query, from, to);
-  if (teamFilter) query = query.eq('team_id', teamFilter);
+  if (teamIds) query = query.in('team_id', teamIds);
   const { data, error } = await query.order('date', { ascending: false });
   if (error) { outputEl.innerHTML = `<div class="empty-state">${error.message}</div>`; return; }
   if (!data.length) { outputEl.innerHTML = '<div class="empty-state">No sessions in this range.</div>'; return; }
@@ -5267,10 +5295,10 @@ async function runMonthlyCoachingReport() {
   outputEl.innerHTML = '<div class="empty-state">Generating...</div>';
   const monthVal = document.getElementById('report-month').value || new Date().toISOString().slice(0, 7);
   const { from, to } = monthRange(monthVal);
-  const teamFilter = document.getElementById('report-team-filter').value;
+  const teamIds = resolveReportTeamIds();
 
   let sessionsQuery = supabase.from('sessions').select('date, title, session_type, duration, team_id').eq('org_id', currentOrgId).gte('date', from).lte('date', to);
-  if (teamFilter) sessionsQuery = sessionsQuery.eq('team_id', teamFilter);
+  if (teamIds) sessionsQuery = sessionsQuery.in('team_id', teamIds);
   const [sessionsRes, reflectionsRes] = await Promise.all([
     sessionsQuery,
     supabase.from('reflections').select('id', { count: 'exact', head: true }).eq('org_id', currentOrgId).gte('date', from).lte('date', to),
@@ -5435,7 +5463,7 @@ async function runAssessmentReport() {
   outputEl.innerHTML = '<div class="empty-state">Generating...</div>';
   const { from, to } = reportDateRange();
   const playerFilter = document.getElementById('report-player-filter').value;
-  const teamFilter = document.getElementById('report-team-filter').value;
+  const teamIds = resolveReportTeamIds();
 
   let query = supabase.from('assessments').select('date, player_id, ratings, priority').eq('org_id', currentOrgId);
   query = applyDateRange(query, from, to);
@@ -5444,9 +5472,10 @@ async function runAssessmentReport() {
   if (error) { outputEl.innerHTML = `<div class="empty-state">${error.message}</div>`; return; }
 
   let rows = data || [];
-  if (teamFilter && !playerFilter) {
-    const teamPlayerIds = new Set(cache.players.filter(p => p.team_id === teamFilter).map(p => p.id));
-    rows = rows.filter(a => teamPlayerIds.has(a.player_id));
+  if (teamIds && !playerFilter) {
+    const teamIdSet = new Set(teamIds);
+    const scopedPlayerIds = new Set(cache.players.filter(p => teamIdSet.has(p.team_id)).map(p => p.id));
+    rows = rows.filter(a => scopedPlayerIds.has(a.player_id));
   }
   if (!rows.length) { outputEl.innerHTML = '<div class="empty-state">No assessments in this range.</div>'; return; }
 
