@@ -701,6 +701,7 @@
           <select id="equipment-condition"><option value="New">New</option><option value="Good">Good</option><option value="Fair">Fair</option><option value="Poor">Poor</option></select>
         </div>
         <input type="text" id="equipment-location" placeholder="Location (optional)">
+        <select id="equipment-branch" style="display:none;"><option value="">All branches</option></select>
         <textarea id="equipment-notes" placeholder="Notes (optional)"></textarea>
         <div class="panelToolbar" style="margin-bottom:0;">
           <button class="btn small" id="save-equipment-btn">Add item</button>
@@ -719,6 +720,7 @@
           <select id="facility-type"><option value="Ground">Ground</option><option value="Net">Net</option><option value="Indoor">Indoor</option><option value="Other">Other</option></select>
         </div>
         <input type="text" id="facility-capacity" placeholder="Capacity (optional)">
+        <select id="facility-branch" style="display:none;"><option value="">All branches</option></select>
         <textarea id="facility-availability" placeholder="Availability notes (optional)"></textarea>
         <textarea id="facility-maintenance" placeholder="Maintenance notes (optional)"></textarea>
         <div class="panelToolbar" style="margin-bottom:0;">
@@ -1047,7 +1049,7 @@ const SUPABASE_URL = 'https://tjcrpnwmaadfcvdbthaz.supabase.co';
 // instead of silently staying stale. version.json must be redeployed
 // alongside this file on every future update, with a matching bump to
 // APP_BUILD_VERSION below — these two must always move together.
-const APP_BUILD_VERSION = '2026-08-26-07:14';
+const APP_BUILD_VERSION = '2026-08-26-07:42';
 async function checkForUpdate() {
   try {
     const res = await fetch('./version.json', { cache: 'no-store' });
@@ -5006,21 +5008,35 @@ async function runBranchSummaryReport() {
 
   const rows = await Promise.all(branchGroups.map(async b => {
     const teamsHere = cache.teams.filter(t => (t.branch_id || null) === b.id);
-    if (!teamsHere.length) return { branch: b.name, teams: 0, players: 0, sessions: 0, matches: 0, w: 0, l: 0, d: 0 };
     const teamIds = teamsHere.map(t => t.id);
+    const { data: equipHere } = await supabase.from('equipment').select('condition').eq('org_id', currentOrgId).eq('branch_id', b.id ?? null);
+    const equipAttention = (equipHere || []).filter(e => e.condition === 'Fair' || e.condition === 'Poor').length;
+    if (!teamsHere.length) return { branch: b.name, teams: 0, players: 0, sessions: 0, matches: 0, w: 0, l: 0, d: 0, outstanding: 0, collected: 0, equipTotal: equipHere?.length ?? 0, equipAttention };
     const [pRes, sRes, mRes] = await Promise.all([
-      supabase.from('players').select('id', { count: 'exact', head: true }).eq('org_id', currentOrgId).in('team_id', teamIds),
+      supabase.from('players').select('id').eq('org_id', currentOrgId).in('team_id', teamIds),
       applyDateRange(supabase.from('sessions').select('id', { count: 'exact', head: true }).eq('org_id', currentOrgId).in('team_id', teamIds), from, to),
       applyDateRange(supabase.from('matches').select('result').eq('org_id', currentOrgId).in('team_id', teamIds), from, to),
     ]);
+    const playerIds = (pRes.data || []).map(p => p.id);
+    let outstanding = 0, collected = 0;
+    if (playerIds.length) {
+      const { data: invoicesHere } = await supabase.from('fee_invoices').select('amount_cents, status').eq('org_id', currentOrgId).in('player_id', playerIds);
+      for (const inv of (invoicesHere || [])) {
+        if (inv.status === 'paid' || inv.status === 'waived') collected += inv.amount_cents; else outstanding += inv.amount_cents;
+      }
+    }
     const results = (mRes.data || []).map(m => classifyResult(m.result));
     const w = results.filter(r => r === 'win').length, l = results.filter(r => r === 'loss').length, d = results.filter(r => r === 'draw').length;
-    return { branch: b.name, teams: teamsHere.length, players: pRes.count ?? 0, sessions: sRes.count ?? 0, matches: (mRes.data || []).length, w, l, d };
+    return { branch: b.name, teams: teamsHere.length, players: playerIds.length, sessions: sRes.count ?? 0, matches: (mRes.data || []).length, w, l, d, outstanding, collected, equipTotal: equipHere?.length ?? 0, equipAttention };
   }));
 
-  const visibleRows = rows.filter(r => r.teams > 0);
+  const visibleRows = rows.filter(r => r.teams > 0 || r.equipTotal > 0);
   if (!visibleRows.length) { outputEl.innerHTML = '<div class="empty-state">No teams assigned to any branch yet.</div>'; return; }
-  outputEl.innerHTML = visibleRows.map(r => `<div class="itemCard"><div class="itemMain"><b>${esc(r.branch)}</b><div class="muted">${r.teams} team${r.teams === 1 ? '' : 's'} · ${r.players} players · ${r.sessions} sessions · ${r.matches} matches (${r.w}W-${r.l}L-${r.d}D)</div></div></div>`).join('');
+  outputEl.innerHTML = visibleRows.map(r => `<div class="itemCard"><div class="itemMain"><b>${esc(r.branch)}</b>
+    <div class="muted">${r.teams} team${r.teams === 1 ? '' : 's'} · ${r.players} players · ${r.sessions} sessions · ${r.matches} matches (${r.w}W-${r.l}L-${r.d}D)</div>
+    <div class="muted">Fees: ${money(r.outstanding, 'INR')} outstanding · ${money(r.collected, 'INR')} collected</div>
+    <div class="muted">Equipment: ${r.equipTotal} item${r.equipTotal === 1 ? '' : 's'}${r.equipAttention ? ` · ${r.equipAttention} needing attention` : ''}</div>
+  </div></div>`).join('');
 }
 
 async function runTrendsAnalyticsReport() {
@@ -5720,15 +5736,28 @@ document.getElementById('save-testing-btn').addEventListener('click', async () =
 
 // ============================================================
 // EQUIPMENT (org-wide)
+async function populateBranchSelect(selectId, selectedId) {
+  if (!cache.branches.length) {
+    const { data } = await supabase.from('branches').select('*').eq('org_id', currentOrgId).order('name');
+    cache.branches = data || [];
+  }
+  const sel = document.getElementById(selectId);
+  if (!cache.branches.length) { sel.style.display = 'none'; return; }
+  sel.innerHTML = '<option value="">All branches</option>' + cache.branches.map(b => `<option value="${b.id}" ${selectedId === b.id ? 'selected' : ''}>${esc(b.name)}</option>`).join('');
+  sel.style.display = '';
+}
+
 // ============================================================
 async function loadEquipment() {
   document.getElementById('equipment-add-form').style.display = roleAtLeast('head_coach') ? 'block' : 'none';
+  await populateBranchSelect('equipment-branch');
   const listEl = document.getElementById('equipment-list');
   listEl.innerHTML = '<div class="empty-state">Loading...</div>';
   const { data, error } = await supabase.from('equipment').select('*').eq('org_id', currentOrgId).order('name');
   if (error) { listEl.innerHTML = `<div class="empty-state">${error.message}</div>`; return; }
   if (!data.length) { listEl.innerHTML = '<div class="empty-state">No equipment logged yet.</div>'; return; }
-  renderPagedList(listEl, data, e => listRow(`${esc(e.name)} <span style="color:var(--text-dim); font-size:12px;">· ${esc(e.category || '')}${e.location ? ' · ' + esc(e.location) : ''}</span>`, `Qty ${e.quantity ?? 1} · ${esc(e.condition || '')}`,
+  const branchName = (id) => id ? (cache.branches.find(b => b.id === id)?.name || '') : '';
+  renderPagedList(listEl, data, e => listRow(`${esc(e.name)} <span style="color:var(--text-dim); font-size:12px;">· ${esc(e.category || '')}${e.location ? ' · ' + esc(e.location) : ''}${branchName(e.branch_id) ? ' · ' + esc(branchName(e.branch_id)) : ''}</span>`, `Qty ${e.quantity ?? 1} · ${esc(e.condition || '')}`,
     roleAtLeast('head_coach') ? () => editEquipment(e) : null,
     roleAtLeast('head_coach') ? async () => { if (!confirmDelete(e.name)) return; await supabase.from('equipment').delete().eq('id', e.id); loadEquipment(); } : null
   ));
@@ -5741,6 +5770,7 @@ function editEquipment(e) {
   document.getElementById('equipment-condition').value = e.condition || 'Good';
   document.getElementById('equipment-location').value = e.location || '';
   document.getElementById('equipment-notes').value = e.notes || '';
+  if (cache.branches.length) document.getElementById('equipment-branch').value = e.branch_id || '';
   document.getElementById('save-equipment-btn').textContent = 'Save changes';
   document.getElementById('cancel-equipment-btn').style.display = 'inline-block';
 }
@@ -5748,6 +5778,7 @@ document.getElementById('cancel-equipment-btn').addEventListener('click', () => 
   editing.equipment = null;
   ['equipment-name', 'equipment-location', 'equipment-notes'].forEach(id => document.getElementById(id).value = '');
   document.getElementById('equipment-quantity').value = 1;
+  if (cache.branches.length) document.getElementById('equipment-branch').value = '';
   document.getElementById('save-equipment-btn').textContent = 'Add item';
   document.getElementById('cancel-equipment-btn').style.display = 'none';
 });
@@ -5762,6 +5793,7 @@ document.getElementById('save-equipment-btn').addEventListener('click', async ()
     location: document.getElementById('equipment-location').value.trim() || null,
     notes: document.getElementById('equipment-notes').value.trim() || null,
   };
+  if (cache.branches.length) row.branch_id = document.getElementById('equipment-branch').value || null;
   const { error } = editing.equipment
     ? await supabase.from('equipment').update(row).eq('id', editing.equipment)
     : await supabase.from('equipment').insert(row);
@@ -5775,12 +5807,14 @@ document.getElementById('save-equipment-btn').addEventListener('click', async ()
 // ============================================================
 async function loadFacilities() {
   document.getElementById('facilities-add-form').style.display = roleAtLeast('head_coach') ? 'block' : 'none';
+  await populateBranchSelect('facility-branch');
   const listEl = document.getElementById('facilities-list');
   listEl.innerHTML = '<div class="empty-state">Loading...</div>';
   const { data, error } = await supabase.from('facilities').select('*').eq('org_id', currentOrgId).order('name');
   if (error) { listEl.innerHTML = `<div class="empty-state">${error.message}</div>`; return; }
   if (!data.length) { listEl.innerHTML = '<div class="empty-state">No facilities logged yet.</div>'; return; }
-  renderPagedList(listEl, data, f => listRow(`${esc(f.name)} <span style="color:var(--text-dim); font-size:12px;">· ${esc(f.type || '')}</span>`, f.capacity || '',
+  const branchName = (id) => id ? (cache.branches.find(b => b.id === id)?.name || '') : '';
+  renderPagedList(listEl, data, f => listRow(`${esc(f.name)} <span style="color:var(--text-dim); font-size:12px;">· ${esc(f.type || '')}${branchName(f.branch_id) ? ' · ' + esc(branchName(f.branch_id)) : ''}</span>`, f.capacity || '',
     roleAtLeast('head_coach') ? () => editFacility(f) : null,
     roleAtLeast('head_coach') ? async () => { if (!confirmDelete(f.name)) return; await supabase.from('facilities').delete().eq('id', f.id); loadFacilities(); } : null
   ));
@@ -5792,12 +5826,14 @@ function editFacility(f) {
   document.getElementById('facility-capacity').value = f.capacity || '';
   document.getElementById('facility-availability').value = f.availability_notes || '';
   document.getElementById('facility-maintenance').value = f.maintenance_notes || '';
+  if (cache.branches.length) document.getElementById('facility-branch').value = f.branch_id || '';
   document.getElementById('save-facility-btn').textContent = 'Save changes';
   document.getElementById('cancel-facility-btn').style.display = 'inline-block';
 }
 document.getElementById('cancel-facility-btn').addEventListener('click', () => {
   editing.facilities = null;
   ['facility-name', 'facility-capacity', 'facility-availability', 'facility-maintenance'].forEach(id => document.getElementById(id).value = '');
+  if (cache.branches.length) document.getElementById('facility-branch').value = '';
   document.getElementById('save-facility-btn').textContent = 'Add facility';
   document.getElementById('cancel-facility-btn').style.display = 'none';
 });
@@ -5811,6 +5847,7 @@ document.getElementById('save-facility-btn').addEventListener('click', async () 
     availability_notes: document.getElementById('facility-availability').value.trim() || null,
     maintenance_notes: document.getElementById('facility-maintenance').value.trim() || null,
   };
+  if (cache.branches.length) row.branch_id = document.getElementById('facility-branch').value || null;
   const { error } = editing.facilities
     ? await supabase.from('facilities').update(row).eq('id', editing.facilities)
     : await supabase.from('facilities').insert(row);
@@ -6005,14 +6042,16 @@ async function openFeeStructuresSheet() {
   const { data: structures, error } = await supabase.from('fee_structures').select('*').eq('org_id', currentOrgId).order('created_at', { ascending: false });
   if (error) { showToast(error.message, 'error'); return; }
   const freqLabels = { one_time: 'One-time', monthly: 'Monthly', quarterly: 'Quarterly', annual: 'Annual' };
+  const branchName = (id) => id ? (cache.branches.find(b => b.id === id)?.name || '') : '';
   openSheet(sheetHead('Manage Fee Types') + `
-    <div id="fee-structures-list">${(structures || []).map(s => `<div class="list-item"><span>${esc(s.name)} — ${money(s.amount_cents, 'INR')} <span class="muted">(${freqLabels[s.frequency]})</span></span><button type="button" class="btn ghost" data-delete-structure="${s.id}" style="width:auto;">Remove</button></div>`).join('') || '<div class="empty-state">No fee types yet.</div>'}</div>
+    <div id="fee-structures-list">${(structures || []).map(s => `<div class="list-item"><span>${esc(s.name)} — ${money(s.amount_cents, 'INR')} <span class="muted">(${freqLabels[s.frequency]}${branchName(s.branch_id) ? ' · ' + esc(branchName(s.branch_id)) : ''})</span></span><button type="button" class="btn ghost" data-delete-structure="${s.id}" style="width:auto;">Remove</button></div>`).join('') || '<div class="empty-state">No fee types yet.</div>'}</div>
     <div class="sectionHeading">Add a fee type</div>
     <div class="formgrid">
       <label class="full">Name<input id="new-structure-name" placeholder="e.g. Monthly Tuition"></label>
       <label>Amount (₹)<input type="number" id="new-structure-amount"></label>
       <label>Frequency<select id="new-structure-frequency"><option value="monthly">Monthly</option><option value="quarterly">Quarterly</option><option value="annual">Annual</option><option value="one_time">One-time</option></select></label>
       <label class="full">Applies to <span class="muted" style="font-weight:400;">(optional — leave blank for whole academy)</span><select id="new-structure-team"><option value="">Whole academy</option>${cache.teams.map(t => `<option value="${t.id}">${esc(t.name)}</option>`).join('')}</select></label>
+      ${cache.branches.length ? `<label class="full">Branch <span class="muted" style="font-weight:400;">(optional — e.g. a location-specific rate)</span><select id="new-structure-branch"><option value="">All branches</option>${cache.branches.map(b => `<option value="${b.id}">${esc(b.name)}</option>`).join('')}</select></label>` : ''}
     </div>
     <button class="btn primary" id="add-structure-btn" style="margin-top:10px; width:auto;">Add</button>`);
   document.getElementById('fee-structures-list').querySelectorAll('[data-delete-structure]').forEach(btn => {
@@ -6027,11 +6066,13 @@ async function openFeeStructuresSheet() {
     const name = document.getElementById('new-structure-name').value.trim();
     const amountCents = Math.round(parseFloat(document.getElementById('new-structure-amount').value || '0') * 100);
     if (!name || !amountCents) { showToast('Name and amount are required.', 'error'); return; }
-    const { error: insertErr } = await supabase.from('fee_structures').insert({
+    const row = {
       org_id: currentOrgId, name, amount_cents: amountCents,
       frequency: document.getElementById('new-structure-frequency').value,
       team_id: document.getElementById('new-structure-team').value || null,
-    });
+    };
+    if (cache.branches.length) row.branch_id = document.getElementById('new-structure-branch').value || null;
+    const { error: insertErr } = await supabase.from('fee_structures').insert(row);
     if (insertErr) { showToast(insertErr.message, 'error'); return; }
     showToast('Fee type added.', 'ok');
     openFeeStructuresSheet();
@@ -6039,6 +6080,7 @@ async function openFeeStructuresSheet() {
 }
 document.getElementById('manage-fee-structures-btn').addEventListener('click', async () => {
   if (!cache.teams.length) await loadTeams();
+  if (!cache.branches.length) { const { data } = await supabase.from('branches').select('*').eq('org_id', currentOrgId).order('name'); cache.branches = data || []; }
   openFeeStructuresSheet();
 });
 
@@ -6071,17 +6113,41 @@ async function loadCoachesPanel() {
     workloadByUser[l.actor_id][l.table_name]++;
   }
 
+  // Derive each coach's branch(es) from their assigned teams — branch
+  // isn't a direct attribute of a coach, it's inherited through
+  // whichever teams they're actually assigned to.
+  if (!cache.branches.length) {
+    const { data: branchData } = await supabase.from('branches').select('*').eq('org_id', currentOrgId);
+    cache.branches = branchData || [];
+  }
+  const branchByTeamId = {};
+  for (const t of cache.teams.length ? cache.teams : (await supabase.from('teams').select('id, branch_id').eq('org_id', currentOrgId)).data || []) {
+    if (t.branch_id) branchByTeamId[t.id] = t.branch_id;
+  }
+  const branchNameById = Object.fromEntries(cache.branches.map(b => [b.id, b.name]));
+  const { data: assignments } = await supabase.from('team_assignments').select('membership_id, team_id').in('membership_id', memberRows.map(m => m.id));
+  const membershipIdToUserId = Object.fromEntries(memberRows.map(m => [m.id, m.user_id]));
+  const branchesByUser = {};
+  for (const a of (assignments || [])) {
+    const branchId = branchByTeamId[a.team_id];
+    if (!branchId) continue;
+    const userId = membershipIdToUserId[a.membership_id];
+    (branchesByUser[userId] ||= new Set()).add(branchNameById[branchId]);
+  }
+
   listEl.innerHTML = '';
   for (const m of memberRows) {
     const name = nameByUser[m.user_id] || m.user_id;
     const detail = detailsByUser[m.user_id] || {};
     const wl = workloadByUser[m.user_id] || { sessions: 0, matches: 0, assessments: 0 };
+    const branchList = branchesByUser[m.user_id] ? [...branchesByUser[m.user_id]].join(', ') : null;
     const card = document.createElement('div'); card.className = 'form-card'; card.style.maxWidth = '560px';
     card.innerHTML = `
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
         <strong>${esc(name)}</strong><span class="role-tag">${esc(m.role)}</span>
       </div>
       <div style="font-size:12px; color:var(--text-dim); margin-bottom:10px;">Last 30 days: ${wl.sessions} sessions · ${wl.matches} matches · ${wl.assessments} assessments logged</div>
+      ${cache.branches.length ? `<div style="font-size:12px; color:var(--text-dim); margin-bottom:10px;"><strong>Branch:</strong> ${esc(branchList || 'No branch (unassigned team, or org-wide role)')}</div>` : ''}
       <div style="font-size:13px; margin-bottom:8px;">
         <div><strong>Qualifications:</strong> ${esc(detail.qualifications || '—')}</div>
         <div><strong>Availability:</strong> ${esc(detail.availability || '—')}</div>
