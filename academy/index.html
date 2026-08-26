@@ -1053,7 +1053,7 @@ const SUPABASE_URL = 'https://tjcrpnwmaadfcvdbthaz.supabase.co';
 // instead of silently staying stale. version.json must be redeployed
 // alongside this file on every future update, with a matching bump to
 // APP_BUILD_VERSION below — these two must always move together.
-const APP_BUILD_VERSION = '2026-08-26-08:56';
+const APP_BUILD_VERSION = '2026-08-26-12:00';
 async function checkForUpdate() {
   try {
     const res = await fetch('./version.json', { cache: 'no-store' });
@@ -6269,7 +6269,7 @@ async function loadSubscription() {
   const [teamsCountRes, playersCountRes, coachesCountRes] = await Promise.all([
     supabase.from('teams').select('id', { count: 'exact', head: true }).eq('org_id', currentOrgId),
     supabase.from('players').select('id', { count: 'exact', head: true }).eq('org_id', currentOrgId),
-    supabase.from('memberships').select('id', { count: 'exact', head: true }).eq('org_id', currentOrgId).eq('status', 'active').in('role', ['head_coach', 'assistant_coach']),
+    supabase.from('memberships').select('id', { count: 'exact', head: true }).eq('org_id', currentOrgId).eq('status', 'active').in('role', ['admin', 'head_coach', 'assistant_coach']),
   ]);
   const usage = { teams: teamsCountRes.count ?? 0, players: playersCountRes.count ?? 0, coaches: coachesCountRes.count ?? 0 };
   const usageBar = (label, count, limit) => {
@@ -6504,7 +6504,7 @@ async function loadPlatformAdmin() {
     const [pRes, tRes, cRes] = await Promise.all([
       supabase.from('players').select('id', { count: 'exact', head: true }).eq('org_id', o.id),
       supabase.from('teams').select('id', { count: 'exact', head: true }).eq('org_id', o.id),
-      supabase.from('memberships').select('id', { count: 'exact', head: true }).eq('org_id', o.id).eq('status', 'active').in('role', ['head_coach', 'assistant_coach']),
+      supabase.from('memberships').select('id', { count: 'exact', head: true }).eq('org_id', o.id).eq('status', 'active').in('role', ['admin', 'head_coach', 'assistant_coach']),
     ]);
     return { orgId: o.id, players: pRes.count ?? 0, teams: tRes.count ?? 0, coaches: cRes.count ?? 0 };
   }));
@@ -6809,9 +6809,9 @@ document.getElementById('invite-btn').addEventListener('click', async () => {
   const email = document.getElementById('invite-email').value.trim();
   const role = document.getElementById('invite-role').value;
   if (!email) return;
-  if (role === 'head_coach' || role === 'assistant_coach') {
+  if (role === 'admin' || role === 'head_coach' || role === 'assistant_coach') {
     const { count, error: countErr } = await supabase.from('memberships').select('id', { count: 'exact', head: true })
-      .eq('org_id', currentOrgId).eq('status', 'active').in('role', ['head_coach', 'assistant_coach']);
+      .eq('org_id', currentOrgId).eq('status', 'active').in('role', ['admin', 'head_coach', 'assistant_coach']);
     if (countErr) reportError(countErr, 'Invite (coach count)');
     else if (planLimitReached('max_coaches', count ?? 0)) { showToast(upgradeMessage('max_coaches'), 'error'); return; }
   }
