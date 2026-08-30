@@ -753,7 +753,7 @@ function showPremiumLockedMessage(){
     if (rosterIds.length>0) html += '<button class="pm-tab" data-action="open-bowler-editor" data-id="'+esc(state.currentBowlerId||"")+'" style="'+(state.currentBowlerId?"":"display:none;")+'">Edit</button>';
     html += '</div>';
 
-    html += '<div class="pm-chip-row"><button class="pm-chip '+(filterIsAll()?"active":"")+'" data-action="set-outcome-filter" data-filter="all">All outcomes</button>';
+    html += '<div class="pm-chip-row" id="outcome-filter-row"><button class="pm-chip '+(filterIsAll()?"active":"")+'" data-action="set-outcome-filter" data-filter="all">All outcomes</button>';
     OUTCOMES.forEach(function(o){ html += '<button class="pm-chip '+(state.outcomeFilter[o.id]&&!filterIsAll()?"active":"")+'" data-action="set-outcome-filter" data-filter="'+o.id+'">'+o.label+'</button>'; });
     html += '<button class="pm-chip '+(state.outcomeFilter["_none"]&&!filterIsAll()?"active":"")+'" data-action="set-outcome-filter" data-filter="_none">No outcome</button></div>';
 
@@ -1193,9 +1193,10 @@ function showPremiumLockedMessage(){
       var f = el.getAttribute("data-filter");
       if (f==="all"){ FILTERABLE.forEach(function(id){ state.outcomeFilter[id] = true; }); }
       else { state.outcomeFilter[f] = !state.outcomeFilter[f]; if (!FILTERABLE.some(function(id){return state.outcomeFilter[id];})) state.outcomeFilter[f] = true; }
-      var scrollBefore = window.scrollY;
+      var filterRowScrollLeft = document.getElementById("outcome-filter-row") ? document.getElementById("outcome-filter-row").scrollLeft : 0;
       render();
-      window.scrollTo(0, scrollBefore);
+      var restoredRow = document.getElementById("outcome-filter-row");
+      if (restoredRow) restoredRow.scrollLeft = filterRowScrollLeft;
     }
     else if (action==="start-delivery"){ state.pendingDelivery = { xPct:null, yPct:null, wagonX:null, wagonY:null, shotType:null, dismissal:null, footwork:null, beaten:false, stage:"mark-pitch" }; render(); }
     else if (action==="repeat-last-ball"){

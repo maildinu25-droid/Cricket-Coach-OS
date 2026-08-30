@@ -237,7 +237,9 @@ function showPremiumLockedMessage(){
   var outcomeMap = {}; OUTCOMES.forEach(function(o){ outcomeMap[o.id] = o; });
   outcomeMap["_none"] = { id:"_none", label:"Pitched (no outcome)", runs:0, color:"#eef2f6" };
   var DISMISSAL_TYPES = ["Bowled","Caught","LBW","Stumped","Run out","Hit wicket","Other"];
-  var DELIVERY_TYPES = ["Stock ball","Slower ball","Yorker","Bouncer","Wide yorker"];
+  var DELIVERY_TYPES = ["Stock ball","Slower ball","Yorker","Bouncer","Wide yorker","Arm ball","Googly","Topspin","Doosra"];
+  var PACE_VARIATIONS = ["Slower ball","Yorker","Bouncer","Wide yorker"];
+  var SPIN_VARIATIONS = ["Arm ball","Googly","Topspin","Doosra"];
   var SPIN_TYPES = ["Off-spin","Leg-spin"];
   var BOWLING_DRILL_PRESETS = [
     { id:"yorker-off", name:"Yorker at the stumps", lengthZoneId:"yorker", lineLabel:"Off", deliveryType:null },
@@ -714,7 +716,7 @@ function showPremiumLockedMessage(){
       html += '</div><div class="pm-over-indicator">Ov '+oversDone+'.'+ballIntoOver+' &middot; '+visibleBalls.length+' balls</div>';
       html += '</div>';
 
-      html += '<div class="pm-chip-row"><button class="pm-chip '+(filterIsAll()?"active":"")+'" data-action="set-outcome-filter" data-filter="all">All outcomes</button>';
+      html += '<div class="pm-chip-row" id="outcome-filter-row"><button class="pm-chip '+(filterIsAll()?"active":"")+'" data-action="set-outcome-filter" data-filter="all">All outcomes</button>';
       OUTCOMES.forEach(function(o){ html += '<button class="pm-chip '+(state.outcomeFilter[o.id]&&!filterIsAll()?"active":"")+'" data-action="set-outcome-filter" data-filter="'+o.id+'">'+o.label+'</button>'; });
       html += '<button class="pm-chip '+(state.outcomeFilter["_none"]&&!filterIsAll()?"active":"")+'" data-action="set-outcome-filter" data-filter="_none">No outcome</button></div>';
 
@@ -771,7 +773,8 @@ function showPremiumLockedMessage(){
           html += '<button data-action="set-deliverytype" data-type="Stock ball" style="width:100%;padding:9px 8px;font-size:12px;font-weight:800;border-radius:7px;border:1px solid '+(stockOn?"var(--accent)":"var(--card-border)")+';background:'+(stockOn?"var(--accent)":"var(--card)")+';color:'+(stockOn?"#04140d":"var(--text-dim)")+';cursor:pointer;margin-bottom:6px;">Stock ball</button>';
           html += '<div style="font-size:9.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--text-dim);margin-bottom:4px;">Variation</div>';
           html += '<div style="display:flex;gap:4px;flex-wrap:wrap;">';
-          DELIVERY_TYPES.filter(function(dt){return dt!=="Stock ball";}).forEach(function(dt){
+          var variationOptions = bowler.bowlPace==="Spin" ? SPIN_VARIATIONS : PACE_VARIATIONS;
+          variationOptions.forEach(function(dt){
             var on = pd.deliveryType===dt;
             html += '<button data-action="set-deliverytype" data-type="'+dt+'" style="padding:7px 8px;font-size:10.5px;font-weight:700;border-radius:6px;border:1px solid '+(on?"var(--accent)":"var(--card-border)")+';background:'+(on?"var(--accent)":"var(--card)")+';color:'+(on?"#04140d":"var(--text-dim)")+';cursor:pointer;">'+dt+'</button>';
           });
@@ -1031,9 +1034,10 @@ function showPremiumLockedMessage(){
       var f = el.getAttribute("data-filter");
       if (f==="all"){ FILTERABLE.forEach(function(id){ state.outcomeFilter[id] = true; }); }
       else { state.outcomeFilter[f] = !state.outcomeFilter[f]; if (!FILTERABLE.some(function(id){return state.outcomeFilter[id];})) state.outcomeFilter[f] = true; }
-      var scrollBefore = window.scrollY;
+      var filterRowScrollLeft = document.getElementById("outcome-filter-row") ? document.getElementById("outcome-filter-row").scrollLeft : 0;
       render();
-      window.scrollTo(0, scrollBefore);
+      var restoredRow = document.getElementById("outcome-filter-row");
+      if (restoredRow) restoredRow.scrollLeft = filterRowScrollLeft;
     }
     else if (action==="start-delivery"){ state.pendingDelivery = { xPct:null, yPct:null, wagonX:null, wagonY:null, dismissal:null, deliveryType:null, stage:"mark-pitch" }; render(); }
     else if (action==="repeat-last-ball"){
