@@ -645,6 +645,56 @@ function initApp(){
 }
 const esc=s=>String(s??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]));const today=()=>new Date().toISOString().slice(0,10);
 function save(){idbSet(DB_KEY,db).catch(err=>console.warn("IndexedDB save failed",err));try{localStorage.setItem(DB_KEY,JSON.stringify(db))}catch(e){}renderAll()}function head(t,s){return `<button class="backBtn noPrint" onclick="goBack()">${icon("chevronLeft",13)} Back</button><div class="hero"><h1>${t}</h1><div class="muted">${s}</div></div>`}function empty(t){return `<div class="empty">${t}</div>`}
+// ===== State-aware "next step" nudges — lightweight, dismissible, tied to =====
+// ===== real data on each page, not a generic hover or tutorial overlay. =====
+function isNudgeDismissed(id){
+ try{ let d=JSON.parse(localStorage.getItem("coachbook_dismissed_nudges")||"[]"); return d.includes(id); }catch(e){ return false; }
+}
+function dismissNudge(id,pageId){
+ try{ let d=JSON.parse(localStorage.getItem("coachbook_dismissed_nudges")||"[]"); if(!d.includes(id)){d.push(id);localStorage.setItem("coachbook_dismissed_nudges",JSON.stringify(d))} }catch(e){}
+ if(typeof window[pageId]==="function") window[pageId]();
+}
+function nudgeBanner(pageId,nudge){
+ if(!nudge||isNudgeDismissed(nudge.id))return "";
+ return `<div class="card" style="border-color:rgba(75,140,255,.35);background:rgba(75,140,255,.06);display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:16px">
+ <div style="flex:1"><b style="color:#7db0ff;font-size:var(--fs-2);text-transform:uppercase;letter-spacing:.4px">Next step</b><div style="margin-top:4px">${esc(nudge.text)}</div>${nudge.actionLabel?`<button class="btn secondary" style="margin-top:10px" onclick="${nudge.action}">${esc(nudge.actionLabel)}</button>`:""}</div>
+ <button onclick="dismissNudge('${nudge.id}','${pageId}')" style="background:none;border:none;color:var(--muted);font-size:20px;line-height:1;cursor:pointer;padding:2px 6px" aria-label="Dismiss">×</button>
+ </div>`;
+}
+function sessionsNudge(){
+ if(!db.sessions.length)return{id:"sessions-first",text:"Plan your first session to get started — set objectives, pick drills, and track attendance.",actionLabel:"+ New Session",action:"newSession()"};
+ if(db.sessions.length>=3&&!(db.sessionTemplates&&db.sessionTemplates.length))return{id:"sessions-template",text:"You've logged a few sessions now — save one as a template to speed up planning next time.",actionLabel:null,action:null};
+ return null;
+}
+function drillsNudge(){
+ if(!db.drills.length)return{id:"drills-first",text:"Add your first drill so you can start building it into session plans.",actionLabel:"+ Add Drill",action:"newDrill()"};
+ let usedDrillIds=new Set();
+ db.sessions.forEach(s=>{(s.mainDrillIds||[]).forEach(id=>usedDrillIds.add(id));(s.gameDrillIds||[]).forEach(id=>usedDrillIds.add(id));});
+ if(db.drills.length&&usedDrillIds.size===0&&db.sessions.length>0)return{id:"drills-link",text:"None of your drills are linked to a session yet — link them in to see which ones you actually use most.",actionLabel:null,action:null};
+ return null;
+}
+function playersNudge(){
+ if(!db.players.length)return{id:"players-first",text:"Add your first player to start tracking their development.",actionLabel:"+ Add Player",action:"newPlayer()"};
+ if(db.players.length&&db.players.every(p=>!(p.goals&&p.goals.length)))return{id:"players-goal",text:"None of your players have a goal set yet — add one to start tracking progress toward something specific.",actionLabel:null,action:null};
+ return null;
+}
+function organisationNudge(){
+ if(!db.teams.length&&db.players.length>0)return{id:"org-team",text:"Create a team to start organising your players into squads.",actionLabel:"+ Add Team",action:"newOrgEntity('team')"};
+ if(db.teams.length&&!db.seasons.length)return{id:"org-season",text:"Set up a season to track a team's fixtures and attendance over a defined period.",actionLabel:"+ Add Season",action:"newOrgEntity('season')"};
+ return null;
+}
+function matchesNudge(){
+ if(!db.matches.length)return{id:"matches-first",text:"Log your first match to start building a performance history.",actionLabel:"+ New Match",action:"newMatch()"};
+ return null;
+}
+function assessmentsNudge(){
+ if(!db.assessments.length&&db.players.length>0)return{id:"assessments-first",text:"Run your first player assessment to start tracking skill development over time.",actionLabel:"+ New Assessment",action:"newAssessment()"};
+ return null;
+}
+function reflectionsNudge(){
+ if(!db.reflections.length&&db.sessions.length>0)return{id:"reflections-first",text:"Log a reflection after your next session — it takes about two minutes and helps you spot patterns over time.",actionLabel:"+ New Reflection",action:"newReflection()"};
+ return null;
+}
 function cssVar(name){return getComputedStyle(document.documentElement).getPropertyValue(name).trim()||"#10b981"}
 function icon(name,size){
  size=size||18;
@@ -980,6 +1030,7 @@ function sessions(){
  if(sessionSquadFilter)list=list.filter(s=>s.squad===sessionSquadFilter);
  let squadOptions=[...new Set(db.sessions.map(s=>s.squad).filter(Boolean))].sort();
  document.getElementById("sessions").innerHTML=head("Session Plans","Plan, document and review every coaching session.")
+ +nudgeBanner("sessions",sessionsNudge())
  +`<button class="btn primary noPrint" onclick="newSession()">+ New Session</button>
  <button class="btn secondary noPrint" style="margin-left:8px" onclick="manageSessionTemplates()">Templates</button>
  <div class="card" style="margin:15px 0"><div class="formgrid">
@@ -1146,6 +1197,7 @@ function reflections(){
  let list=db.reflections.slice().sort((a,b)=>String(b.date||"").localeCompare(String(a.date||"")));
  if(reflectionQuery){let q=reflectionQuery.toLowerCase();list=list.filter(x=>reflectionSearchableText(x).some(v=>String(v||"").toLowerCase().includes(q)))}
  document.getElementById("reflections").innerHTML=head("Self Reflections","Turn experience into deliberate coaching improvement.")
+ +nudgeBanner("reflections",reflectionsNudge())
  +`<button class="btn primary" onclick="newReflection()">+ New Reflection</button>
  <div class="card" style="margin:15px 0"><label>Search<input id="reflectionSearch" value="${esc(reflectionQuery)}" oninput="reflectionQuery=this.value;reflections()" onfocus="reflectionSearchFocused=true" onblur="reflectionSearchFocused=false" placeholder="Session, notes, learning..."></label></div>
  <h2 class="section">Reflection history (${list.length})</h2>
@@ -1334,6 +1386,7 @@ function players(){
  if(playerRoleFilter)list=list.filter(p=>p.role===playerRoleFilter);
  if(playerTeamFilter)list=list.filter(p=>p.team===playerTeamFilter);
  document.getElementById("players").innerHTML=head("Players","Development record for every player.")
+ +nudgeBanner("players",playersNudge())
  +`<div class="toolbar noPrint"><button class="btn primary" onclick="newPlayer()">+ Add Player</button><button class="btn secondary" onclick="newPlayersBulk()">+ Add Multiple</button><button class="btn secondary" onclick="playerRosterReport()">Print Roster</button></div>
  <div class="card" style="margin:15px 0"><div class="formgrid">
  <label>Search<input id="playerSearch" value="${esc(playerQuery)}" oninput="playerQuery=this.value;players()" onfocus="playerSearchFocused=true" onblur="playerSearchFocused=false" placeholder="Name, team, notes..."></label>
@@ -1665,7 +1718,7 @@ const skillSets={Batting:["Setup & Balance","Footwork","Bat Swing / Contact","Sh
 // Old assessments still have 10 stored values — this preserves them exactly as
 // originally entered rather than silently corrupting/relabeling them.
 const legacyBowlingSkills=["Run-up / Approach","Action & Alignment","Accuracy","Length Control","Consistency","Pace / Revolutions","Swing / Seam / Spin","Variations","Tactical Awareness","Execution Under Pressure"];
-function assessments(){document.getElementById("assessments").innerHTML=head("Player Assessments","Choose one or more disciplines. For an all-rounder select Batting + Bowling; Fielding can also be added.")+`<button class="btn primary" onclick="newAssessment()">+ New Assessment</button><h2 class="section">Assessment history</h2><div class="card">${db.assessments.length?db.assessments.slice().reverse().map(a=>`<div class="item"><div><b>${esc(a.player)}</b><div class="muted">${esc(a.date)} · Overall ${assessmentAvg(a)}/10</div><div>${assessmentDisciplines(a).map(d=>`<span class="tag">${esc(d)}</span>`).join("")}</div><small>${esc(a.priority||"")}</small>${a.mediaLinks&&a.mediaLinks.length?`<div style="margin-top:6px">${a.mediaLinks.map((link,i)=>`<a href="${esc(link)}" target="_blank" rel="noopener" class="tag" style="cursor:pointer">🎬 Link ${i+1}</a>`).join("")}</div>`:""}</div><div class="toolbar"><button class="btn secondary" onclick="editAssessment('${a.id}')">Edit</button><button class="btn danger" onclick="delAssessment('${a.id}')">×</button></div></div>`).join(""):empty("No assessments yet.")}</div>`}
+function assessments(){document.getElementById("assessments").innerHTML=head("Player Assessments","Choose one or more disciplines. For an all-rounder select Batting + Bowling; Fielding can also be added.")+nudgeBanner("assessments",assessmentsNudge())+`<button class="btn primary" onclick="newAssessment()">+ New Assessment</button><h2 class="section">Assessment history</h2><div class="card">${db.assessments.length?db.assessments.slice().reverse().map(a=>`<div class="item"><div><b>${esc(a.player)}</b><div class="muted">${esc(a.date)} · Overall ${assessmentAvg(a)}/10</div><div>${assessmentDisciplines(a).map(d=>`<span class="tag">${esc(d)}</span>`).join("")}</div><small>${esc(a.priority||"")}</small>${a.mediaLinks&&a.mediaLinks.length?`<div style="margin-top:6px">${a.mediaLinks.map((link,i)=>`<a href="${esc(link)}" target="_blank" rel="noopener" class="tag" style="cursor:pointer">🎬 Link ${i+1}</a>`).join("")}</div>`:""}</div><div class="toolbar"><button class="btn secondary" onclick="editAssessment('${a.id}')">Edit</button><button class="btn danger" onclick="delAssessment('${a.id}')">×</button></div></div>`).join(""):empty("No assessments yet.")}</div>`}
 function assessmentFormHtml(a,mode){
  a=a||{};
  return `<div class="sheetHead"><h2>${mode==="edit"?"Edit Assessment":"Player Assessment"}</h2><button class="x" onclick="closeM()">×</button></div>
@@ -1880,6 +1933,7 @@ function drills(){
  if(drillQuery){let q=drillQuery.toLowerCase();list=list.filter(d=>[d.name,d.cat,d.equipment,d.points,d.progressions,d.regressions].some(v=>String(v||"").toLowerCase().includes(q)))}
  if(drillCatFilter)list=list.filter(d=>d.cat===drillCatFilter);
  document.getElementById("drills").innerHTML=head("Drill Library","Keep your best coaching practices organised and reusable.")
+ +nudgeBanner("drills",drillsNudge())
  +`<div class="toolbar noPrint"><button class="btn primary" onclick="newDrill()">+ Add Drill</button><button class="btn secondary" onclick="drillLibraryReport()">Print Library</button></div>
  <div class="card" style="margin:15px 0"><div class="formgrid">
  <label>Search<input id="drillSearch" value="${esc(drillQuery)}" oninput="drillQuery=this.value;drills()" onfocus="drillSearchFocused=true" onblur="drillSearchFocused=false" placeholder="Name, equipment, coaching points..."></label>
@@ -1906,7 +1960,7 @@ function matches(){
  if(matchQuery){let q=matchQuery.toLowerCase();list=list.filter(m=>[m.team,m.opp,m.venue,m.notes,m.actions,m.result,m.teamNotes,m.battingAssessmentNotes,m.bowlingAssessmentNotes].some(v=>String(v||"").toLowerCase().includes(q)))}
  if(matchFormatFilter)list=list.filter(m=>m.format===matchFormatFilter);
  if(matchResultFilter)list=list.filter(m=>matchResultOutcome(m)===matchResultFilter);
- document.getElementById("matches").innerHTML=head("Match Centre","Match details, foundation, team & individual reviews, and automatic reports.")+`<div class="toolbar noPrint"><button class="btn primary" onclick="newMatch()">+ New Match</button><button class="btn secondary" onclick="matchReport()">Print Report</button><button class="btn secondary" onclick="exportExcel()">Export Excel</button></div>
+ document.getElementById("matches").innerHTML=head("Match Centre","Match details, foundation, team & individual reviews, and automatic reports.")+nudgeBanner("matches",matchesNudge())+`<div class="toolbar noPrint"><button class="btn primary" onclick="newMatch()">+ New Match</button><button class="btn secondary" onclick="matchReport()">Print Report</button><button class="btn secondary" onclick="exportExcel()">Export Excel</button></div>
  <div class="card" style="margin:15px 0"><div class="formgrid">
  <label>Search<input id="matchSearch" value="${esc(matchQuery)}" oninput="matchQuery=this.value;matches()" onfocus="matchSearchFocused=true" onblur="matchSearchFocused=false" placeholder="Team, opposition, venue, notes..."></label>
  <label>Format<select onchange="matchFormatFilter=this.value;matches()"><option value="">All formats</option>${MATCH_FORMATS.map(f=>`<option value="${f}" ${matchFormatFilter===f?"selected":""}>${f}</option>`).join("")}</select></label>
@@ -2163,6 +2217,7 @@ let tournamentSquadOpen={};
 function toggleTournamentSquad(id){tournamentSquadOpen[id]=!tournamentSquadOpen[id];organisation()}
 function organisation(){
  document.getElementById("organisation").innerHTML=head("Teams & Seasons","Manage the teams, tournaments and seasons your coaching work is organised around.")
+ +nudgeBanner("organisation",organisationNudge())
  +`<h2 class="section" style="margin-top:0">Teams</h2>
  <div class="toolbar noPrint"><button class="btn primary" onclick="newOrgEntity('team')">+ Add Team</button></div>
  <div class="grid g3" style="margin-top:12px">${db.teams.length?db.teams.map(t=>{
