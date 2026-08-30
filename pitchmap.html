@@ -52,7 +52,7 @@
   .pm-seg button.active{background:var(--accent);color:#04140d;}
   .pm-over-indicator{font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--accent);font-weight:600;}
 
-  .pm-pitch-wrap{position:relative;background:linear-gradient(180deg,var(--turf-mid),var(--turf-deep));border-radius:20px;padding:6px;height:min(86vh,980px);display:flex;justify-content:center;align-items:center;border:1px solid var(--card-border);overflow:hidden;}
+  .pm-pitch-wrap{position:relative;background:linear-gradient(180deg,var(--turf-mid),var(--turf-deep));border-radius:20px;padding:10px;height:min(74vh,860px);display:flex;justify-content:center;align-items:center;border:1px solid var(--card-border);overflow:hidden;}
   .pm-pitch-svg{height:100%;width:auto;max-width:100%;display:block;cursor:crosshair;border-radius:8px;touch-action:manipulation;}
   .pm-ground-svg{width:100%;height:100%;display:block;cursor:crosshair;touch-action:manipulation;}
   .pm-corner-btn{position:absolute;top:8px;right:8px;z-index:15;}
@@ -487,6 +487,7 @@ function showPremiumLockedMessage(){
     // pendingDelivery.stage: 'mark-pitch' -> 'awaiting-shot' -> 'outcome' -> 'dismissal' (wickets only)
     pendingDelivery: null,
     viewMode: "dots",
+    combinedDetailsCollapsed: true,
     overFilter: "all",
     outcomeFilter: {}, // id -> bool, default all true (built below)
     showLoad: false,
@@ -696,29 +697,40 @@ function showPremiumLockedMessage(){
     html += '<button class="pm-mode-tab '+(state.mode==="combined"?"active":"")+'" data-action="set-mode" data-mode="combined">Outcomes &amp; Wagon Wheel</button>';
     html += '</div>';
 
-    html += '<div class="pm-toolbar"><div style="display:flex;gap:8px;flex-wrap:wrap;">';
-    html += '<div class="pm-seg"><button data-action="set-hand" data-hand="RHB" class="'+(bowler.hand==="RHB"?"active":"")+'">RHB</button><button data-action="set-hand" data-hand="LHB" class="'+(bowler.hand==="LHB"?"active":"")+'">LHB</button></div>';
-    if (state.mode==="pitch"){
-      html += '<div class="pm-seg"><button data-action="set-view" data-view="dots" class="'+(state.viewMode==="dots"?"active":"")+'">Dots</button><button data-action="set-view" data-view="heat" class="'+(state.viewMode==="heat"?"active":"")+'">Heat grid</button></div>';
+    if (state.mode==="combined"){
+      html += '<div class="pm-toolbar" style="align-items:center">';
+      html += '<div style="font-size:13px;font-weight:700;color:var(--text)">'+esc(bowler.name)+' ('+bowlTypeText(bowler)+') to a '+bowler.hand+' batter</div>';
+      html += '<button class="pm-btn small secondary" data-action="toggle-combined-details">'+(state.combinedDetailsCollapsed?"Show filters &amp; details":"Hide filters &amp; details")+'</button>';
+      html += '</div>';
     }
-    html += '</div><div class="pm-over-indicator">Ov '+oversDone+'.'+ballIntoOver+' &middot; '+visibleBalls.length+' balls</div></div>';
+    var showFullToolbar = state.mode==="pitch" || !state.combinedDetailsCollapsed;
+    if (showFullToolbar){
+      html += '<div class="pm-toolbar">';
+      html += '<div style="display:flex;gap:8px;flex-wrap:wrap;">';
+      html += '<div class="pm-seg"><button data-action="set-hand" data-hand="RHB" class="'+(bowler.hand==="RHB"?"active":"")+'">RHB</button><button data-action="set-hand" data-hand="LHB" class="'+(bowler.hand==="LHB"?"active":"")+'">LHB</button></div>';
+      if (state.mode==="pitch"){
+        html += '<div class="pm-seg"><button data-action="set-view" data-view="dots" class="'+(state.viewMode==="dots"?"active":"")+'">Dots</button><button data-action="set-view" data-view="heat" class="'+(state.viewMode==="heat"?"active":"")+'">Heat grid</button></div>';
+      }
+      html += '</div><div class="pm-over-indicator">Ov '+oversDone+'.'+ballIntoOver+' &middot; '+visibleBalls.length+' balls</div>';
+      html += '</div>';
 
-    html += '<div class="pm-chip-row"><button class="pm-chip '+(filterIsAll()?"active":"")+'" data-action="set-outcome-filter" data-filter="all">All outcomes</button>';
-    OUTCOMES.forEach(function(o){ html += '<button class="pm-chip '+(state.outcomeFilter[o.id]&&!filterIsAll()?"active":"")+'" data-action="set-outcome-filter" data-filter="'+o.id+'">'+o.label+'</button>'; });
-    html += '<button class="pm-chip '+(state.outcomeFilter["_none"]&&!filterIsAll()?"active":"")+'" data-action="set-outcome-filter" data-filter="_none">No outcome</button></div>';
+      html += '<div class="pm-chip-row"><button class="pm-chip '+(filterIsAll()?"active":"")+'" data-action="set-outcome-filter" data-filter="all">All outcomes</button>';
+      OUTCOMES.forEach(function(o){ html += '<button class="pm-chip '+(state.outcomeFilter[o.id]&&!filterIsAll()?"active":"")+'" data-action="set-outcome-filter" data-filter="'+o.id+'">'+o.label+'</button>'; });
+      html += '<button class="pm-chip '+(state.outcomeFilter["_none"]&&!filterIsAll()?"active":"")+'" data-action="set-outcome-filter" data-filter="_none">No outcome</button></div>';
 
-    html += '<div class="pm-chip-row">';
-    if (state.activeDrill){
-      var drillBallsP = visibleBalls.filter(function(b){return b.drillHit!==null && b.drillHit!==undefined;});
-      var drillHitsP = drillBallsP.filter(function(b){return b.drillHit;}).length;
-      var drillPctP = drillBallsP.length ? Math.round((drillHitsP/drillBallsP.length)*100) : 0;
-      html += '<button class="pm-chip active" data-action="open-drill-picker">Plan: '+esc(state.activeDrill.name)+' &middot; '+drillHitsP+'/'+drillBallsP.length+' ('+drillPctP+'%)</button>';
-      html += '<button class="pm-chip" data-action="clear-drill">Stop plan</button>';
-    } else {
-      html += '<button class="pm-chip" data-action="open-drill-picker">+ Plan ball</button>';
+      html += '<div class="pm-chip-row">';
+      if (state.activeDrill){
+        var drillBallsP = visibleBalls.filter(function(b){return b.drillHit!==null && b.drillHit!==undefined;});
+        var drillHitsP = drillBallsP.filter(function(b){return b.drillHit;}).length;
+        var drillPctP = drillBallsP.length ? Math.round((drillHitsP/drillBallsP.length)*100) : 0;
+        html += '<button class="pm-chip active" data-action="open-drill-picker">Plan: '+esc(state.activeDrill.name)+' &middot; '+drillHitsP+'/'+drillBallsP.length+' ('+drillPctP+'%)</button>';
+        html += '<button class="pm-chip" data-action="clear-drill">Stop plan</button>';
+      } else {
+        html += '<button class="pm-chip" data-action="open-drill-picker">+ Plan ball</button>';
+      }
+      html += '<button class="pm-chip" data-action="open-conditions">Conditions'+(state.conditions.weather||state.conditions.pitch?" &middot; set":"")+'</button>';
+      html += '</div>';
     }
-    html += '<button class="pm-chip" data-action="open-conditions">Conditions'+(state.conditions.weather||state.conditions.pitch?" &middot; set":"")+'</button>';
-    html += '</div>';
 
     if (state.mode==="pitch"){
       if (overNumbers.length>1){
@@ -736,7 +748,7 @@ function showPremiumLockedMessage(){
       OUTCOMES.forEach(function(o){ html += '<span><span class="pm-legend-dot" style="background:'+o.color+'"></span>'+o.label+'</span>'; });
       html += '</div>';
     } else if (state.mode==="combined") {
-      html += '<div class="pm-pitch-wrap" id="combo-wrap" style="aspect-ratio:1/1;height:auto;max-height:86vh;padding:6px;">';
+      html += '<div class="pm-pitch-wrap" id="combo-wrap">';
       if (pd && pd.stage==="mark-pitch"){
         html += pitchSvgMarkup(bowler, "dots", bowler.balls.filter(passesFilter), null, "pitch-svg2", false);
         html += '<div class="pm-corner-btn"><button class="pm-btn small secondary" data-action="cancel-delivery">Cancel</button></div>';
@@ -752,14 +764,18 @@ function showPremiumLockedMessage(){
           html += '</div>';
         }
         if (pd && pd.stage==="outcome"){
-          var pos2 = popoverStyle(pd, 196, 220);
-          html += '<div class="pm-popover" style="left:'+pos2.left+'px;top:'+pos2.top+'px;width:186px;">';
-          html += '<div style="grid-column:1/-1;display:flex;gap:3px;flex-wrap:wrap;margin-bottom:3px;">';
-          DELIVERY_TYPES.forEach(function(dt){
+          var pos2 = popoverStyle(pd, 226, 260);
+          html += '<div class="pm-popover" style="left:'+pos2.left+'px;top:'+pos2.top+'px;width:216px;">';
+          html += '<div style="grid-column:1/-1;margin-bottom:6px;">';
+          var stockOn = pd.deliveryType==="Stock ball";
+          html += '<button data-action="set-deliverytype" data-type="Stock ball" style="width:100%;padding:9px 8px;font-size:12px;font-weight:800;border-radius:7px;border:1px solid '+(stockOn?"var(--accent)":"var(--card-border)")+';background:'+(stockOn?"var(--accent)":"var(--card)")+';color:'+(stockOn?"#04140d":"var(--text-dim)")+';cursor:pointer;margin-bottom:6px;">Stock ball</button>';
+          html += '<div style="font-size:9.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--text-dim);margin-bottom:4px;">Variation</div>';
+          html += '<div style="display:flex;gap:4px;flex-wrap:wrap;">';
+          DELIVERY_TYPES.filter(function(dt){return dt!=="Stock ball";}).forEach(function(dt){
             var on = pd.deliveryType===dt;
-            html += '<button data-action="set-deliverytype" data-type="'+dt+'" style="padding:5px 6px;font-size:8.5px;font-weight:700;border-radius:5px;border:1px solid '+(on?"var(--accent)":"var(--card-border)")+';background:'+(on?"var(--accent)":"var(--card)")+';color:'+(on?"#04140d":"var(--text-dim)")+';cursor:pointer;">'+dt+'</button>';
+            html += '<button data-action="set-deliverytype" data-type="'+dt+'" style="padding:7px 8px;font-size:10.5px;font-weight:700;border-radius:6px;border:1px solid '+(on?"var(--accent)":"var(--card-border)")+';background:'+(on?"var(--accent)":"var(--card)")+';color:'+(on?"#04140d":"var(--text-dim)")+';cursor:pointer;">'+dt+'</button>';
           });
-          html += '</div>';
+          html += '</div></div>';
           OUTCOMES.forEach(function(o){ html += '<button class="pm-outcome-btn" style="background:'+o.color+'" data-action="commit-delivery" data-outcome="'+o.id+'">'+o.label+'</button>'; });
           html += '</div>';
         }
@@ -1010,11 +1026,14 @@ function showPremiumLockedMessage(){
     else if (action==="set-bowlside"){ cb().bowlSide = el.getAttribute("data-val"); render(); }
     else if (action==="set-view"){ state.viewMode = el.getAttribute("data-view"); render(); }
     else if (action==="set-over"){ var v = el.getAttribute("data-over"); state.overFilter = v==="all"?"all":Number(v); render(); }
+    else if (action==="toggle-combined-details"){ state.combinedDetailsCollapsed = !state.combinedDetailsCollapsed; render(); }
     else if (action==="set-outcome-filter"){
       var f = el.getAttribute("data-filter");
       if (f==="all"){ FILTERABLE.forEach(function(id){ state.outcomeFilter[id] = true; }); }
       else { state.outcomeFilter[f] = !state.outcomeFilter[f]; if (!FILTERABLE.some(function(id){return state.outcomeFilter[id];})) state.outcomeFilter[f] = true; }
+      var scrollBefore = window.scrollY;
       render();
+      window.scrollTo(0, scrollBefore);
     }
     else if (action==="start-delivery"){ state.pendingDelivery = { xPct:null, yPct:null, wagonX:null, wagonY:null, dismissal:null, deliveryType:null, stage:"mark-pitch" }; render(); }
     else if (action==="repeat-last-ball"){
