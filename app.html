@@ -299,6 +299,8 @@ const SEND_CODE_API="https://coachbook-email.maildinu25.workers.dev/send-code";
 const VERIFY_CODE_API="https://coachbook-email.maildinu25.workers.dev/verify-code";
 const TRIAL_CHECK_API="https://procoachos-dodo.maildinu25.workers.dev/api/trial/check";
 let pendingVerificationEmail="";
+let isRestoreFlow=false;
+const RESTORE_API="https://procoachos-dodo.maildinu25.workers.dev/api/trial/restore";
 async function checkTrialEmailUsed(email){
  try{
   let response=await fetch(TRIAL_CHECK_API,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email})});
@@ -321,9 +323,14 @@ async function submitEmailGateStep1(e){
  if(submitBtn){submitBtn.disabled=true;submitBtn.textContent="Checking..."}
  let{alreadyUsed}=await checkTrialEmailUsed(email);
  if(alreadyUsed){
-  if(submitBtn){submitBtn.disabled=false;submitBtn.textContent="Send Verification Code"}
-  alert("This email has already used a free trial. If that's you, enter a Basic or Premium license key on the Account page instead — or use a different email to start a new trial.");
-  return;
+  // Not a dead end anymore — this email has a real trial or license
+  // somewhere already (possibly in a different, isolated browser
+  // context, like Instagram's in-app browser or an iOS Home Screen
+  // shortcut). Verify it's really them, then restore their existing
+  // access here rather than blocking them outright.
+  isRestoreFlow=true;
+ } else {
+  isRestoreFlow=false;
  }
  if(submitBtn){submitBtn.textContent="Sending Code..."}
  let sendResult=null;
@@ -349,7 +356,16 @@ function showEmailGateStep2(email){
  if(!overlay)return;
  let card=overlay.querySelector(".card");
  if(!card)return;
- card.innerHTML=`<h1 style="margin-top:0;font-size:var(--fs-7)">Check your email</h1>
+ card.innerHTML=isRestoreFlow?
+ `<h1 style="margin-top:0;font-size:var(--fs-7)">Restore your access</h1>
+ <p class="muted">This email already has an account. We sent a 6-digit code to <b>${esc(email)}</b> — enter it to confirm it's you and continue on this device.</p>
+ <form onsubmit="submitEmailGateStep2(event)">
+  <label class="full">Verification code<input type="text" id="emailGateCodeInput" required inputmode="numeric" maxlength="6" placeholder="123456" style="letter-spacing:6px;font-size:20px;text-align:center"></label>
+  <button class="btn primary full" style="margin-top:14px">Verify &amp; Restore Access</button>
+ </form>
+ <button type="button" class="btn secondary full" style="margin-top:10px" onclick="resendEmailGateCode()">Resend Code</button>`
+ :
+ `<h1 style="margin-top:0;font-size:var(--fs-7)">Check your email</h1>
  <p class="muted">We sent a 6-digit code to <b>${esc(email)}</b>. Enter it below to start your trial.</p>
  <form onsubmit="submitEmailGateStep2(event)">
   <label class="full">Verification code<input type="text" id="emailGateCodeInput" required inputmode="numeric" maxlength="6" placeholder="123456" style="letter-spacing:6px;font-size:20px;text-align:center"></label>
@@ -379,6 +395,7 @@ async function submitEmailGateStep2(e){
  let email=pendingVerificationEmail;
  if(!code||!email){alert("Enter the code from your email.");return}
  let submitBtn=e&&e.target?e.target.querySelector("button"):null;
+ let defaultLabel=isRestoreFlow?"Verify & Restore Access":"Verify & Start Trial";
  if(submitBtn){submitBtn.disabled=true;submitBtn.textContent="Verifying..."}
  let verifyResult=null;
  try{
@@ -386,14 +403,44 @@ async function submitEmailGateStep2(e){
   verifyResult=null;try{verifyResult=await response.json()}catch(_){}
  }catch(err){
   console.error("Verify-code request failed:",err&&err.message?err.message:err);
-  if(submitBtn){submitBtn.disabled=false;submitBtn.textContent="Verify & Start Trial"}
+  if(submitBtn){submitBtn.disabled=false;submitBtn.textContent=defaultLabel}
   alert("Couldn't reach the verification server. Check your connection and try again.");
   return;
  }
  if(!verifyResult||verifyResult.verified!==true){
-  if(submitBtn){submitBtn.disabled=false;submitBtn.textContent="Verify & Start Trial"}
+  if(submitBtn){submitBtn.disabled=false;submitBtn.textContent=defaultLabel}
   let reason=verifyResult&&verifyResult.error==="wrong_code"?"That code doesn't match. Please try again.":"That code has expired. Tap Resend Code to get a new one.";
   alert(reason);
+  return;
+ }
+ if(isRestoreFlow){
+  // Identity confirmed via the code above — now pull back whatever
+  // access this email actually has (paid license, or an existing
+  // trial with its REAL original start date) rather than granting a
+  // fresh trial on this new, previously-empty browser context.
+  if(submitBtn){submitBtn.textContent="Restoring Access..."}
+  let restoreResult=null;
+  try{
+   let response=await fetch(RESTORE_API,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email})});
+   restoreResult=null;try{restoreResult=await response.json()}catch(_){}
+  }catch(err){
+   console.error("Restore request failed:",err&&err.message?err.message:err);
+   if(submitBtn){submitBtn.disabled=false;submitBtn.textContent=defaultLabel}
+   alert("Couldn't reach the server to restore your access. Check your connection and try again.");
+   return;
+  }
+  if(!restoreResult||restoreResult.found!==true){
+   if(submitBtn){submitBtn.disabled=false;submitBtn.textContent=defaultLabel}
+   alert("We couldn't find an existing account for this email. Please contact hello@procoachos.in for help.");
+   return;
+  }
+  let lic=restoreResult.status==="licensed"
+   ?{status:restoreResult.tier,trialStartedAt:today(),licenseKey:restoreResult.licenseKey,trialEndedNoticeShown:true,email:email}
+   :{status:"trial",trialStartedAt:restoreResult.trialStartedAt||today(),licenseKey:"",trialEndedNoticeShown:false,email:email};
+  saveLicenseState(lic);
+  pendingVerificationEmail="";isRestoreFlow=false;
+  let overlay=document.getElementById("emailGateOverlay");if(overlay)overlay.remove();
+  nav();renderAll();applyTheme(document.documentElement.classList.contains("light")?"light":"dark");checkPlanTransition();
   return;
  }
  if(submitBtn){submitBtn.textContent="Starting Trial..."}
@@ -410,7 +457,7 @@ async function submitEmailGateStep2(e){
  }catch(err){console.error("Welcome email failed to send:",err&&err.message?err.message:err)}
  let lic={status:"trial",trialStartedAt:today(),licenseKey:"",trialEndedNoticeShown:false,email:email};
  saveLicenseState(lic);
- pendingVerificationEmail="";
+ pendingVerificationEmail="";isRestoreFlow=false;
  let overlay=document.getElementById("emailGateOverlay");if(overlay)overlay.remove();
  nav();renderAll();applyTheme(document.documentElement.classList.contains("light")?"light":"dark");checkPlanTransition();
 }
