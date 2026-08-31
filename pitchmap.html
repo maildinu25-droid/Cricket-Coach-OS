@@ -421,13 +421,8 @@ function showPremiumLockedMessage(){
         });
       } else if (viewMode==="ballpos"){
         declutterPitch(balls).forEach(function(b){
-          if (b.outcome==="_none"){
-            html += '<circle cx="'+b.dx+'" cy="'+b.dy+'" r="5" fill="rgba(238,242,246,0.15)" stroke="#eef2f6" stroke-width="1.4"/>';
-            return;
-          }
           var posColor = ballPositionColor(b.ballNo);
-          var o = outcomeMap[b.outcome];
-          var big = o.id==="4"||o.id==="6"||o.id==="W";
+          var big = b.outcome!=="_none" && (outcomeMap[b.outcome].id==="4"||outcomeMap[b.outcome].id==="6"||outcomeMap[b.outcome].id==="W");
           html += '<circle cx="'+b.dx+'" cy="'+b.dy+'" r="'+(big?7:5.5)+'" fill="'+posColor+'" stroke="#0a1420" stroke-width="1.3" opacity="0.95"/>';
           if (hasWagon(b)) html += '<circle cx="'+b.dx+'" cy="'+b.dy+'" r="'+((big?7:5.5)+2.5)+'" fill="none" stroke="'+posColor+'" stroke-width="1" opacity="0.5"/>';
         });
