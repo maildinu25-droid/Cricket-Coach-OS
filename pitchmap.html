@@ -858,6 +858,8 @@ function showPremiumLockedMessage(){
       html += outcomeColumnsTable(lineLabels.map(function(label,i){ return { label:label, balls: visibleBalls.filter(function(b){return lineZoneIndex(b.xPct)===i;}) }; }));
       html += '<div class="pm-seam"></div><div class="pm-panel-title" style="font-size:12.5px">Delivery type</div>';
       html += outcomeColumnsTable(DELIVERY_TYPES.map(function(dt){ return { label:dt, balls: visibleBalls.filter(function(b){return b.deliveryType===dt;}) }; }).filter(function(r){return r.balls.length>0;}));
+      html += '<div class="pm-seam"></div><div class="pm-panel-title" style="font-size:12.5px">Ball condition</div>';
+      html += outcomeColumnsTable(["New","Semi","Old"].map(function(bc){ return { label:bc, balls: visibleBalls.filter(function(b){return b.ballCondition===bc;}) }; }).filter(function(r){return r.balls.length>0;}));
       var cs1 = consistencyStats(visibleBalls);
       if (cs1){
         html += '<div class="pm-seam"></div><div class="pm-panel-title" style="font-size:12.5px">Consistency</div>';
@@ -893,6 +895,8 @@ function showPremiumLockedMessage(){
       var visForConsistency = bowler.balls.filter(passesFilter);
       html += '<div class="pm-seam"></div><div class="pm-panel-title" style="font-size:12.5px">Delivery type</div>';
       html += outcomeColumnsTable(DELIVERY_TYPES.map(function(dt){ return { label:dt, balls: visForConsistency.filter(function(b){return b.deliveryType===dt;}) }; }).filter(function(r){return r.balls.length>0;}));
+      html += '<div class="pm-seam"></div><div class="pm-panel-title" style="font-size:12.5px">Ball condition</div>';
+      html += outcomeColumnsTable(["New","Semi","Old"].map(function(bc){ return { label:bc, balls: visForConsistency.filter(function(b){return b.ballCondition===bc;}) }; }).filter(function(r){return r.balls.length>0;}));
       var cs2 = consistencyStats(visForConsistency);
       if (cs2){
         html += '<div class="pm-seam"></div><div class="pm-panel-title" style="font-size:12.5px">Consistency</div>';
@@ -1192,7 +1196,17 @@ function showPremiumLockedMessage(){
     else if (action==="close-conditions"){ state.showConditions = false; render(); }
     else if (action==="set-weather"){ var wv = el.getAttribute("data-val"); state.conditions.weather = state.conditions.weather===wv?"":wv; render(); }
     else if (action==="set-pitchtype"){ var pv = el.getAttribute("data-val"); state.conditions.pitch = state.conditions.pitch===pv?"":pv; render(); }
-    else if (action==="set-ballcondition"){ var bcv = el.getAttribute("data-val"); state.conditions.ballCondition = state.conditions.ballCondition===bcv?"":bcv; if (state.pendingDelivery) state.pendingDelivery.ballCondition = state.conditions.ballCondition; render(); }
+    else if (action==="set-ballcondition"){
+      var bcv = el.getAttribute("data-val");
+      // Deliberately does NOT toggle off when the same value is tapped
+      // again, unlike weather/pitch type. Ball condition is meant to
+      // stay tagged on every subsequent delivery until changed to a
+      // DIFFERENT value — a stray double-tap silently clearing it would
+      // mean later balls quietly stop being tagged at all.
+      state.conditions.ballCondition = bcv;
+      if (state.pendingDelivery) state.pendingDelivery.ballCondition = state.conditions.ballCondition;
+      render();
+    }
     else if (action==="load-session"){
       var key = el.getAttribute("data-key");
       var rec = savedSessionsCache.find(function(r){ return r.key===key; });
@@ -1506,6 +1520,8 @@ function showPremiumLockedMessage(){
       html += printOutcomeColumnsTable(lineLabels.map(function(label,i){ return { label:label, balls: b.balls.filter(function(ball){return lineZoneIndex(ball.xPct)===i;}) }; }));
       html += '<div class="pr-section-title">Delivery type</div>';
       html += printOutcomeColumnsTable(DELIVERY_TYPES.map(function(dt){ return { label:dt, balls: b.balls.filter(function(ball){return ball.deliveryType===dt;}) }; }).filter(function(r){return r.balls.length>0;}));
+      html += '<div class="pr-section-title">Ball condition</div>';
+      html += printOutcomeColumnsTable(["New","Semi","Old"].map(function(bc){ return { label:bc, balls: b.balls.filter(function(ball){return ball.ballCondition===bc;}) }; }).filter(function(r){return r.balls.length>0;}));
       var csP = consistencyStats(b.balls);
       if (csP){
         html += '<div class="pr-section-title">Consistency</div><div class="pr-stats"><div class="pr-stat"><b>'+csP.lengthPct+'%</b>Length %</div><div class="pr-stat"><b>'+csP.linePct+'%</b>Line %</div><div class="pr-stat"><b>'+csP.corridorPct+'%</b>Corridor %</div></div>';
@@ -1561,6 +1577,9 @@ function showPremiumLockedMessage(){
 
       html += '<div class="pr-section-title">Delivery type</div>';
       html += printOutcomeColumnsTable(DELIVERY_TYPES.map(function(dt){ return { label:dt, balls: b.balls.filter(function(ball){return ball.deliveryType===dt;}) }; }).filter(function(r){return r.balls.length>0;}));
+
+      html += '<div class="pr-section-title">Ball condition</div>';
+      html += printOutcomeColumnsTable(["New","Semi","Old"].map(function(bc){ return { label:bc, balls: b.balls.filter(function(ball){return ball.ballCondition===bc;}) }; }).filter(function(r){return r.balls.length>0;}));
 
       var csP = consistencyStats(b.balls);
       if (csP){
