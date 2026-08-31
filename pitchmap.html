@@ -506,6 +506,7 @@ function showPremiumLockedMessage(){
     combinedDetailsCollapsed: true,
     overFilter: "all",
     outcomeFilter: {}, // id -> bool, default all true (built below)
+    ballNoFilter: {}, // 1-6 -> bool, default all true (built below)
     showLoad: false,
     status: "",
     activeDrill: null, // {name, lengthZoneId, lineLabel, deliveryType}
@@ -516,8 +517,15 @@ function showPremiumLockedMessage(){
     sessionKey: null, // stable key reused by auto-save + manual save so repeated saves update one record
   };
   FILTERABLE.forEach(function(id){ state.outcomeFilter[id] = true; });
+  [1,2,3,4,5,6].forEach(function(n){ state.ballNoFilter[n] = true; });
   function filterIsAll(){ return FILTERABLE.every(function(id){ return state.outcomeFilter[id]; }); }
+  function ballNoFilterIsAll(){ return [1,2,3,4,5,6].every(function(n){ return state.ballNoFilter[n]; }); }
   function passesFilter(ball){ return !!state.outcomeFilter[ball.outcome]; }
+  // Separate, deliberately NOT merged into passesFilter above — that
+  // function also runs against raw balls (in "combined" mode's mini
+  // pitch) that never have .ballNo computed, so folding this in there
+  // would silently break those views instead.
+  function passesBallNoFilter(ball){ return !!state.ballNoFilter[ball.ballNo]; }
   state.bowlers[firstId] = { name: "Bowler 1", hand: "RHB", bowlArm:"RA", bowlPace:"Pace", bowlSpin:null, bowlSide:"Over", balls: [] };
 
   function cb(){ return state.bowlers[state.currentBowlerId]; }
@@ -672,6 +680,7 @@ function showPremiumLockedMessage(){
     var overNumbers = Array.from(new Set(ballsWithOvers.map(function(b){return b.over;}))).sort(function(a,b){return a-b;});
     var visibleBalls = state.overFilter==="all" ? ballsWithOvers : ballsWithOvers.filter(function(b){return b.over===state.overFilter;});
     visibleBalls = visibleBalls.filter(passesFilter);
+    visibleBalls = visibleBalls.filter(passesBallNoFilter);
 
     var st = statsFor(visibleBalls);
     var lineLabels = bowler.hand==="LHB" ? LINE_LABELS_LHB : LINE_LABELS_RHB;
@@ -734,6 +743,12 @@ function showPremiumLockedMessage(){
       html += '<div class="pm-chip-row" id="outcome-filter-row"><button class="pm-chip '+(filterIsAll()?"active":"")+'" data-action="set-outcome-filter" data-filter="all">All outcomes</button>';
       OUTCOMES.forEach(function(o){ html += '<button class="pm-chip '+(state.outcomeFilter[o.id]&&!filterIsAll()?"active":"")+'" data-action="set-outcome-filter" data-filter="'+o.id+'">'+o.label+'</button>'; });
       html += '<button class="pm-chip '+(state.outcomeFilter["_none"]&&!filterIsAll()?"active":"")+'" data-action="set-outcome-filter" data-filter="_none">No outcome</button></div>';
+
+      if (state.mode==="pitch"){
+        html += '<div class="pm-chip-row" id="ballno-filter-row"><button class="pm-chip '+(ballNoFilterIsAll()?"active":"")+'" data-action="set-ballno-filter" data-filter="all">All balls in over</button>';
+        [1,2,3,4,5,6].forEach(function(n){ html += '<button class="pm-chip '+(state.ballNoFilter[n]&&!ballNoFilterIsAll()?"active":"")+'" data-action="set-ballno-filter" data-filter="'+n+'">Ball '+n+'</button>'; });
+        html += '</div>';
+      }
 
       html += '<div class="pm-chip-row">';
       if (state.activeDrill){
@@ -857,7 +872,7 @@ function showPremiumLockedMessage(){
       html += '<div class="pm-panel"><div class="pm-panel-title">Ball log</div>';
       if (bowler.balls.length===0) html += '<div style="font-size:12px;color:var(--text-dim)">No balls plotted yet.</div>';
       html += '<div class="pm-ball-list">';
-      ballsWithOvers.filter(passesFilter).forEach(function(b){
+      ballsWithOvers.filter(passesFilter).filter(passesBallNoFilter).forEach(function(b){
         var o = outcomeMap[b.outcome], lz = lengthZoneFor(b.yPct), ln = lineLabel(b.xPct, bowler.hand);
         var dismissTxt = (b.outcome==="W" && b.dismissal) ? (" ("+b.dismissal+")") : "";
         html += '<div class="pm-ball-row"><span class="pm-ball-tag"><span class="pm-ball-swatch" style="background:'+o.color+'"></span>'+b.over+'.'+b.ballNo+' '+o.label+dismissTxt+' &mdash; '+lz.label+', '+ln+(hasWagon(b)?' &middot; shot logged':'')+'</span><button class="pm-x-btn" data-action="remove-ball" data-id="'+b.id+'">&times;</button></div>';
@@ -892,7 +907,7 @@ function showPremiumLockedMessage(){
       html += '<div class="pm-panel"><div class="pm-panel-title">Delivery log</div>';
       if (bowler.balls.length===0) html += '<div style="font-size:12px;color:var(--text-dim)">No deliveries logged yet.</div>';
       html += '<div class="pm-ball-list">';
-      ballsWithOvers.filter(passesFilter).forEach(function(b){
+      ballsWithOvers.filter(passesFilter).filter(passesBallNoFilter).forEach(function(b){
         var o = outcomeMap[b.outcome], lz = lengthZoneFor(b.yPct), ln = lineLabel(b.xPct, bowler.hand);
         var shotTxt = hasWagon(b) ? ((bowler.hand==="LHB" ? b.wagonX>=GW_CX : b.wagonX<GW_CX) ? "off side" : "leg side") : "no shot";
         var dismissTxt = (b.outcome==="W" && b.dismissal) ? (" ("+b.dismissal+")") : "";
@@ -1061,6 +1076,27 @@ function showPremiumLockedMessage(){
       render();
       var restoredRow = document.getElementById("outcome-filter-row");
       if (restoredRow) restoredRow.scrollLeft = filterRowScrollLeft;
+    }
+    else if (action==="set-ballno-filter"){
+      var fn = el.getAttribute("data-filter");
+      if (fn==="all"){ [1,2,3,4,5,6].forEach(function(n){ state.ballNoFilter[n] = true; }); }
+      else {
+        var fnNum = parseInt(fn,10);
+        var alreadyIsolatedToThis = state.ballNoFilter[fnNum] && [1,2,3,4,5,6].filter(function(n){return n!==fnNum;}).every(function(n){return !state.ballNoFilter[n];});
+        if (alreadyIsolatedToThis){
+          // Tapping the already-isolated ball again returns to showing everything.
+          [1,2,3,4,5,6].forEach(function(n){ state.ballNoFilter[n] = true; });
+        } else {
+          // Isolate to just this one ball position — matches the actual
+          // use case (spot a pattern on "just ball 5"), not a toggle-to-hide
+          // like the outcome filter uses.
+          [1,2,3,4,5,6].forEach(function(n){ state.ballNoFilter[n] = (n===fnNum); });
+        }
+      }
+      var bnRowScrollLeft = document.getElementById("ballno-filter-row") ? document.getElementById("ballno-filter-row").scrollLeft : 0;
+      render();
+      var bnRestoredRow = document.getElementById("ballno-filter-row");
+      if (bnRestoredRow) bnRestoredRow.scrollLeft = bnRowScrollLeft;
     }
     else if (action==="start-delivery"){ state.pendingDelivery = { xPct:null, yPct:null, wagonX:null, wagonY:null, dismissal:null, deliveryType:null, beaten:false, ballCondition:state.conditions.ballCondition||"", stage:"mark-pitch" }; render(); }
     else if (action==="repeat-last-ball"){
@@ -1446,15 +1482,23 @@ function showPremiumLockedMessage(){
       var st = statsFor(b.balls);
       var pitchSvg = pitchSvgMarkup(b, "dots", b.balls, null, null, true);
       var groundSvg = groundSvgMarkup(b, b.balls, null, null, true);
+      var ballsWithOversAllTime = withOvers(b.balls);
+      var ballPosSvgAllTime = pitchSvgMarkup(b, "ballpos", ballsWithOversAllTime, null, null, true);
+      var beatenCountAT = b.balls.filter(function(x){return x.beaten;}).length;
+      var beatenPctAT = b.balls.length ? Math.round((beatenCountAT/b.balls.length)*100) : 0;
       var html = '<button class="pm-btn" style="margin-bottom:16px" onclick="window.print()">Print / Save PDF</button>';
       html += '<div class="pr-bowler">';
       html += '<div class="pr-head"><h1>'+esc(b.name)+' \u2014 All-Time Bowling Report</h1><div class="pr-meta">'+bowlTypeText(b)+' &middot; '+(b.bowlSide==="Around"?"Around":"Over")+' the wkt &middot; combined across every saved session &middot; ProCoach OS</div></div>';
       html += '<div class="pr-stats">';
-      [["Total balls",b.balls.length],["Runs",st.totalRuns],["Wickets",st.wickets],["Economy",st.economy.toFixed(1)],["Dot ball %",st.dotPct.toFixed(0)+"%"],["Boundaries",st.boundaries]].forEach(function(s){
+      [["Total balls",b.balls.length],["Runs",st.totalRuns],["Wickets",st.wickets],["Economy",st.economy.toFixed(1)],["Dot ball %",st.dotPct.toFixed(0)+"%"],["Boundaries",st.boundaries],["Beaten %",beatenPctAT+"%"]].forEach(function(s){
         html += '<div class="pr-stat"><b>'+s[1]+'</b>'+s[0]+'</div>';
       });
       html += '</div>';
       html += '<div class="pr-charts">'+pitchSvg+groundSvg+'</div>';
+      html += '<div class="pr-section-title">By ball position in the over</div>';
+      html += '<div style="font-size:10px;color:#8a95a3;margin:-4px 0 8px;">Note: since sessions are combined here, over/ball numbering resets at each session boundary, not necessarily at a clean 6-ball over.</div>';
+      html += '<div class="pr-charts">'+ballPosSvgAllTime+'</div>';
+      html += '<div style="font-size:10.5px;color:#5a6472;margin:4px 0 14px;">'+BALL_POSITION_COLORS.map(function(c,i){ return '<span style="display:inline-block;margin-right:10px"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:'+c+';margin-right:4px"></span>Ball '+(i+1)+'</span>'; }).join('')+'</div>';
       html += '<div class="pr-section-title">Length breakdown</div>';
       html += printOutcomeColumnsTable(LENGTH_ZONES.map(function(z){ return { label:z.label, balls: b.balls.filter(function(ball){return lengthZoneFor(ball.yPct).id===z.id;}) }; }));
       var lineLabels = b.hand==="LHB" ? LINE_LABELS_LHB : LINE_LABELS_RHB;
@@ -1488,17 +1532,25 @@ function showPremiumLockedMessage(){
       var wRuns = wagonBalls.reduce(function(s,x){return s+outcomeMap[x.outcome].runs;},0);
       var pitchSvg = pitchSvgMarkup(b, "dots", b.balls, null, null, true);
       var groundSvg = groundSvgMarkup(b, b.balls, null, null, true);
+      var ballsWithOversForReport = withOvers(b.balls);
+      var ballPosSvg = pitchSvgMarkup(b, "ballpos", ballsWithOversForReport, null, null, true);
+      var beatenCountR = b.balls.filter(function(x){return x.beaten;}).length;
+      var beatenPctR = b.balls.length ? Math.round((beatenCountR/b.balls.length)*100) : 0;
 
       html += '<div class="pr-bowler">';
       html += '<div class="pr-head"><h1>'+esc(b.name||"Bowler")+' — Bowling Report</h1><div class="pr-meta">'+esc(state.sessionDate)+' &middot; '+bowlTypeText(b)+' &middot; '+(b.bowlSide==="Around"?"Around":"Over")+' the wkt &middot; vs '+b.hand+' batter'+(state.conditions.weather||state.conditions.pitch?(' &middot; '+esc([state.conditions.weather,state.conditions.pitch].filter(Boolean).join(", "))):'')+' &middot; ProCoach OS</div></div>';
 
       html += '<div class="pr-stats">';
-      [["Total balls",b.balls.length],["Runs",st.totalRuns],["Wickets",st.wickets],["Economy",st.economy.toFixed(1)],["Dot ball %",st.dotPct.toFixed(0)+"%"],["Boundaries",st.boundaries]].forEach(function(s){
+      [["Total balls",b.balls.length],["Runs",st.totalRuns],["Wickets",st.wickets],["Economy",st.economy.toFixed(1)],["Dot ball %",st.dotPct.toFixed(0)+"%"],["Boundaries",st.boundaries],["Beaten %",beatenPctR+"%"]].forEach(function(s){
         html += '<div class="pr-stat"><b>'+s[1]+'</b>'+s[0]+'</div>';
       });
       html += '</div>';
 
       html += '<div class="pr-charts">'+pitchSvg+groundSvg+'</div>';
+
+      html += '<div class="pr-section-title">By ball position in the over</div>';
+      html += '<div class="pr-charts">'+ballPosSvg+'</div>';
+      html += '<div style="font-size:10.5px;color:#5a6472;margin:4px 0 14px;">'+BALL_POSITION_COLORS.map(function(c,i){ return '<span style="display:inline-block;margin-right:10px"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:'+c+';margin-right:4px"></span>Ball '+(i+1)+'</span>'; }).join('')+'</div>';
 
       html += '<div class="pr-section-title">Length breakdown</div>';
       html += printOutcomeColumnsTable(LENGTH_ZONES.map(function(z){ return { label:z.label, balls: b.balls.filter(function(ball){return lengthZoneFor(ball.yPct).id===z.id;}) }; }));
