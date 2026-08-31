@@ -542,7 +542,7 @@ function showPremiumLockedMessage(){
     chase: null, // {targetRuns, targetOvers}
     showChaseSetup: false,
     // session conditions
-    conditions: { weather:"", pitch:"" },
+    conditions: { weather:"", pitch:"", ballCondition:"" },
     showConditions: false,
     // stance/grip photo log
     showPhotoLog: false,
@@ -698,6 +698,7 @@ function showPremiumLockedMessage(){
 
     html += '<div class="pm-toolbar"><div style="display:flex;gap:8px;flex-wrap:wrap;">';
     html += '<div class="pm-seg"><button data-action="set-hand" data-hand="RHB" class="'+(batter.hand==="RHB"?"active":"")+'">RHB</button><button data-action="set-hand" data-hand="LHB" class="'+(batter.hand==="LHB"?"active":"")+'">LHB</button></div>';
+    html += '<div class="pm-seg"><button data-action="set-ballcondition" data-val="New" class="'+(state.conditions.ballCondition==="New"?"active":"")+'">New</button><button data-action="set-ballcondition" data-val="Semi" class="'+(state.conditions.ballCondition==="Semi"?"active":"")+'">Semi</button><button data-action="set-ballcondition" data-val="Old" class="'+(state.conditions.ballCondition==="Old"?"active":"")+'">Old</button></div>';
     if (!pd || pd.stage==="mark-pitch"){
       html += '<div class="pm-seg"><button data-action="set-idleview" data-view="ground" class="'+(state.idleView==="ground"?"active":"")+'">Wagon wheel</button><button data-action="set-idleview" data-view="pitch" class="'+(state.idleView==="pitch"?"active":"")+'">Pitch map</button></div>';
     }
@@ -856,6 +857,8 @@ function showPremiumLockedMessage(){
     ].filter(function(r){return r.balls.length>0;}));
     html += '<div class="pm-seam"></div><div class="pm-panel-title" style="font-size:12.5px">Bowling type faced</div>';
     html += outcomeColumnsTable(bowlTypeSplit);
+    html += '<div class="pm-seam"></div><div class="pm-panel-title" style="font-size:12.5px">Ball condition</div>';
+    html += outcomeColumnsTable(["New","Semi","Old"].map(function(bc){ return { label:bc, balls: visibleBalls.filter(function(b){return b.ballCondition===bc;}) }; }).filter(function(r){return r.balls.length>0;}));
     html += '</div>';
 
     html += '<div class="pm-panel"><div class="pm-panel-title">Dismissal map <span class="dim">'+dismissals.length+' dismissal'+(dismissals.length===1?"":"s")+'</span></div>';
@@ -1140,6 +1143,15 @@ function showPremiumLockedMessage(){
     else if (action==="close-conditions"){ state.showConditions = false; render(); }
     else if (action==="set-weather"){ var wv = el.getAttribute("data-val"); state.conditions.weather = state.conditions.weather===wv?"":wv; render(); }
     else if (action==="set-pitchtype"){ var pv = el.getAttribute("data-val"); state.conditions.pitch = state.conditions.pitch===pv?"":pv; render(); }
+    else if (action==="set-ballcondition"){
+      var bcv = el.getAttribute("data-val");
+      // Deliberately sticky, unlike weather/pitch type -- see PitchMap
+      // for the same fix and the reasoning (a stray re-tap should not
+      // silently clear tagging for every subsequent delivery).
+      state.conditions.ballCondition = bcv;
+      if (state.pendingDelivery) state.pendingDelivery.ballCondition = state.conditions.ballCondition;
+      render();
+    }
     else if (action==="open-photolog"){
       state.showPhotoLog = true; render();
       var key = keyName(cb().name);
@@ -1198,10 +1210,10 @@ function showPremiumLockedMessage(){
       var restoredRow = document.getElementById("outcome-filter-row");
       if (restoredRow) restoredRow.scrollLeft = filterRowScrollLeft;
     }
-    else if (action==="start-delivery"){ state.pendingDelivery = { xPct:null, yPct:null, wagonX:null, wagonY:null, shotType:null, dismissal:null, footwork:null, beaten:false, stage:"mark-pitch" }; render(); }
+    else if (action==="start-delivery"){ state.pendingDelivery = { xPct:null, yPct:null, wagonX:null, wagonY:null, shotType:null, dismissal:null, footwork:null, beaten:false, ballCondition:state.conditions.ballCondition||"", stage:"mark-pitch" }; render(); }
     else if (action==="repeat-last-ball"){
       var lastBall = cb().balls[cb().balls.length-1];
-      state.pendingDelivery = { xPct:null, yPct:null, wagonX:null, wagonY:null, shotType:lastBall?lastBall.shotType:null, dismissal:null, footwork:lastBall?lastBall.footwork:null, beaten:lastBall?!!lastBall.beaten:false, stage:"mark-pitch", repeatingContext:true };
+      state.pendingDelivery = { xPct:null, yPct:null, wagonX:null, wagonY:null, shotType:lastBall?lastBall.shotType:null, dismissal:null, footwork:lastBall?lastBall.footwork:null, beaten:lastBall?!!lastBall.beaten:false, ballCondition:state.conditions.ballCondition||"", stage:"mark-pitch", repeatingContext:true };
       render();
     }
     else if (action==="cancel-delivery"){ state.pendingDelivery = null; render(); }
@@ -1248,7 +1260,7 @@ function showPremiumLockedMessage(){
         } else {
           var bp1 = currentBowlerProfile();
           var drillHit1 = evaluateDrillHit(pd);
-          cb().balls.push({ id:uid(), xPct:pd.xPct, yPct:pd.yPct, wagonX:pd.wagonX, wagonY:pd.wagonY, shotType:pd.shotType, outcome:outcomeId, dismissal:null, footwork:pd.footwork, beaten:!!pd.beaten, drillHit:drillHit1, bowlArm:bp1.bowlArm, bowlPace:bp1.bowlPace, bowlSpin:bp1.bowlSpin, bowlSide:bp1.bowlSide, t:Date.now() });
+          cb().balls.push({ id:uid(), xPct:pd.xPct, yPct:pd.yPct, wagonX:pd.wagonX, wagonY:pd.wagonY, shotType:pd.shotType, outcome:outcomeId, dismissal:null, footwork:pd.footwork, beaten:!!pd.beaten, ballCondition:pd.ballCondition||"", drillHit:drillHit1, bowlArm:bp1.bowlArm, bowlPace:bp1.bowlPace, bowlSpin:bp1.bowlSpin, bowlSide:bp1.bowlSide, t:Date.now() });
           state.pendingDelivery = null; autoSaveSession(); render();
         }
       }
@@ -1258,7 +1270,7 @@ function showPremiumLockedMessage(){
       if (pd2 && pd2.stage==="dismissal"){
         var bp2 = currentBowlerProfile();
         var drillHit2 = evaluateDrillHit(pd2);
-        cb().balls.push({ id:uid(), xPct:pd2.xPct, yPct:pd2.yPct, wagonX:pd2.wagonX, wagonY:pd2.wagonY, shotType:pd2.shotType, outcome:"W", dismissal:el.getAttribute("data-dismissal"), footwork:pd2.footwork, beaten:!!pd2.beaten, drillHit:drillHit2, bowlArm:bp2.bowlArm, bowlPace:bp2.bowlPace, bowlSpin:bp2.bowlSpin, bowlSide:bp2.bowlSide, t:Date.now() });
+        cb().balls.push({ id:uid(), xPct:pd2.xPct, yPct:pd2.yPct, wagonX:pd2.wagonX, wagonY:pd2.wagonY, shotType:pd2.shotType, outcome:"W", dismissal:el.getAttribute("data-dismissal"), footwork:pd2.footwork, beaten:!!pd2.beaten, ballCondition:pd2.ballCondition||"", drillHit:drillHit2, bowlArm:bp2.bowlArm, bowlPace:bp2.bowlPace, bowlSpin:bp2.bowlSpin, bowlSide:bp2.bowlSide, t:Date.now() });
         state.pendingDelivery = null; autoSaveSession(); render();
       }
     }
@@ -1595,6 +1607,8 @@ function showPremiumLockedMessage(){
         { label:"Right-arm leg-spin", balls: b.balls.filter(function(ball){return ball.bowlArm==="RA" && ball.bowlSpin==="Leg-spin";}) },
         { label:"Chinaman", balls: b.balls.filter(function(ball){return ball.bowlArm==="LA" && ball.bowlSpin==="Leg-spin";}) },
       ].filter(function(r){return r.balls.length>0;}));
+      html += '<div class="pr-section-title">Ball condition</div>';
+      html += printOutcomeColumnsTable(["New","Semi","Old"].map(function(bc){ return { label:bc, balls: b.balls.filter(function(ball){return ball.ballCondition===bc;}) }; }).filter(function(r){return r.balls.length>0;}));
       var dismissalsList = b.balls.filter(function(ball){return ball.outcome==="W";});
       html += '<div class="pr-section-title">Dismissal map (all sessions combined)</div><table class="pr-table"><tr><th>Dismissal</th><th>Shot</th><th>Length</th><th>Line</th><th>Bowling faced</th></tr>';
       dismissalsList.forEach(function(ball){
@@ -1662,6 +1676,9 @@ function showPremiumLockedMessage(){
         { label:"Right-arm leg-spin", balls: b.balls.filter(function(ball){return ball.bowlArm==="RA" && ball.bowlSpin==="Leg-spin";}) },
         { label:"Chinaman", balls: b.balls.filter(function(ball){return ball.bowlArm==="LA" && ball.bowlSpin==="Leg-spin";}) },
       ].filter(function(r){return r.balls.length>0;}));
+
+      html += '<div class="pr-section-title">Ball condition</div>';
+      html += printOutcomeColumnsTable(["New","Semi","Old"].map(function(bc){ return { label:bc, balls: b.balls.filter(function(ball){return ball.ballCondition===bc;}) }; }).filter(function(r){return r.balls.length>0;}));
 
       var dismissals = withOvers(b.balls).filter(function(ball){return ball.outcome==="W";});
       html += '<div class="pr-section-title">Dismissal map</div><table class="pr-table"><tr><th>Ball</th><th>Dismissal</th><th>Shot</th><th>Length</th><th>Line</th><th>Bowling faced</th></tr>';
