@@ -99,7 +99,7 @@
   .pm-x-btn{background:rgba(255,255,255,0.06);border:none;color:var(--text-dim);cursor:pointer;padding:6px 10px;font-size:14px;border-radius:8px;min-height:32px;min-width:32px;touch-action:manipulation;}
   .pm-x-btn:active{color:var(--danger);}
 
-  .pm-popover{position:absolute;background:var(--card);border:1.5px solid var(--accent);border-radius:12px;padding:8px;box-shadow:0 12px 30px rgba(0,0,0,.5);display:grid;grid-template-columns:repeat(3,1fr);gap:5px;z-index:20;width:196px;}
+  .pm-popover{position:fixed;background:var(--card);border:1.5px solid var(--accent);border-radius:12px;padding:8px;box-shadow:0 12px 30px rgba(0,0,0,.5);display:grid;grid-template-columns:repeat(3,1fr);gap:5px;z-index:20;width:196px;}
   .pm-detail-chip{font-family:'Inter',sans-serif;font-size:11px;font-weight:700;background:var(--card);border:1px solid var(--card-border);color:var(--text);border-radius:999px;padding:4px 10px;cursor:pointer;white-space:nowrap;}
   .pm-detail-chip:active{border-color:var(--accent);}
   .pm-detail-chip-wrap{position:relative;display:inline-block;}
@@ -820,7 +820,7 @@ function showPremiumLockedMessage(){
           html += '<div class="pm-corner-btn" style="display:flex;gap:6px;"><button class="pm-btn small secondary" data-action="go-back">&larr; Back</button><button class="pm-btn small secondary" data-action="skip-shot">Skip &rarr;</button></div>';
         }
         if (pd && pd.stage==="shot-type"){
-          var posS = popoverStyle(pd, 196, 190);
+          var posS = popoverStyle(pd, 190, 300);
           html += '<div class="pm-popover" style="left:'+posS.left+'px;top:'+posS.top+'px;grid-template-columns:repeat(2,1fr);width:186px;">';
           html += '<button data-action="go-back" style="grid-column:1/-1;padding:5px 8px;font-size:10.5px;font-weight:700;border-radius:6px;border:1px solid var(--card-border);background:var(--card);color:var(--text-dim);cursor:pointer;width:fit-content;">&larr; Back</button>';
           SHOT_TYPES.forEach(function(s){ html += '<button class="pm-outcome-btn" style="background:#e0ab2c" data-action="commit-shottype" data-shottype="'+s+'">'+s+'</button>'; });
@@ -828,14 +828,14 @@ function showPremiumLockedMessage(){
           html += '</div>';
         }
         if (pd && pd.stage==="outcome"){
-          var pos2 = popoverStyle(pd, 196, 126);
+          var pos2 = popoverStyle(pd, 200, 180);
           html += '<div class="pm-popover" style="left:'+pos2.left+'px;top:'+pos2.top+'px;">';
           html += '<button data-action="go-back" style="grid-column:1/-1;padding:5px 8px;font-size:10.5px;font-weight:700;border-radius:6px;border:1px solid var(--card-border);background:var(--card);color:var(--text-dim);cursor:pointer;margin-bottom:4px;width:fit-content;">&larr; Back</button>';
           OUTCOMES.forEach(function(o){ html += '<button class="pm-outcome-btn" style="background:'+o.color+'" data-action="commit-delivery" data-outcome="'+o.id+'">'+o.label+'</button>'; });
           html += '</div>';
         }
         if (pd && pd.stage==="dismissal"){
-          var pos3 = popoverStyle(pd, 186, 168);
+          var pos3 = popoverStyle(pd, 175, 220);
           html += '<div class="pm-popover" style="left:'+pos3.left+'px;top:'+pos3.top+'px;grid-template-columns:repeat(2,1fr);width:170px;">';
           html += '<button data-action="go-back" style="grid-column:1/-1;padding:5px 8px;font-size:10.5px;font-weight:700;border-radius:6px;border:1px solid var(--card-border);background:var(--card);color:var(--text-dim);cursor:pointer;margin-bottom:4px;width:fit-content;">&larr; Back</button>';
           DISMISSAL_TYPES.forEach(function(dt){ html += '<button class="pm-outcome-btn" style="background:#ff6b52" data-action="commit-dismissal" data-dismissal="'+dt+'">'+dt+'</button>'; });
@@ -1080,8 +1080,8 @@ function showPremiumLockedMessage(){
         if (dist > GW_R){ var k = GW_R/dist; gx = GW_CX+dx*k; gy = GW_CY+dy*k; }
         state.pendingDelivery.wagonX = gx; state.pendingDelivery.wagonY = gy;
         state.pendingDelivery.stage = state.pendingDelivery.repeatingContext ? "outcome" : "shot-type";
-        state.pendingDelivery.px = e.clientX-wrapRect.left; state.pendingDelivery.py = e.clientY-wrapRect.top;
-        state.pendingDelivery.wrapW = wrapRect.width; state.pendingDelivery.wrapH = wrapRect.height;
+        state.pendingDelivery.px = e.clientX; state.pendingDelivery.py = e.clientY;
+        state.pendingDelivery.wrapW = window.innerWidth; state.pendingDelivery.wrapH = window.innerHeight;
         render();
       });
     } else if (state.mode==="field"){
@@ -1340,8 +1340,8 @@ function showPremiumLockedMessage(){
         var wrapEl = document.getElementById("combo-wrap");
         var r = wrapEl.getBoundingClientRect();
         state.pendingDelivery.stage = "outcome";
-        state.pendingDelivery.px = r.width/2 - 98; state.pendingDelivery.py = r.height/2 - 63;
-        state.pendingDelivery.wrapW = r.width; state.pendingDelivery.wrapH = r.height;
+        state.pendingDelivery.px = window.innerWidth/2 - 98; state.pendingDelivery.py = window.innerHeight/2 - 63;
+        state.pendingDelivery.wrapW = window.innerWidth; state.pendingDelivery.wrapH = window.innerHeight;
         render();
       }
     }
