@@ -238,6 +238,11 @@ function showPremiumLockedMessage(){
   ];
   var outcomeMap = {}; OUTCOMES.forEach(function(o){ outcomeMap[o.id] = o; });
   outcomeMap["_none"] = { id:"_none", label:"Pitched (no outcome)", runs:0, color:"#eef2f6" };
+  var BALL_POSITION_COLORS = ["#ff6b52","#e0ab2c","#4fb87a","#2ec4c4","#3d8bd6","#b98ce0"];
+  function ballPositionColor(ballNo){
+    var idx = ((ballNo||1)-1) % BALL_POSITION_COLORS.length;
+    return BALL_POSITION_COLORS[idx];
+  }
 
   var DISMISSAL_TYPES = ["Bowled","Caught","LBW","Stumped","Run out","Hit wicket","Other"];
   var SHOT_TYPES = ["Leave","Defend","Drive","Cut","Pull/Hook","Sweep","Flick","Loft","Edge","Other"];
@@ -438,6 +443,15 @@ function showPremiumLockedMessage(){
           var t = cell.count/maxHeat;
           html += '<rect x="'+cell.colFrom+'" y="'+y1+'" width="'+(cell.colTo-cell.colFrom)+'" height="'+(y2-y1)+'" fill="'+(cell.count?("rgba(255,107,82,"+(0.12+t*0.68)+")"):"transparent")+'" stroke="rgba(244,241,232,0.08)"/>';
           if (cell.count>0) html += '<text x="'+((cell.colFrom+cell.colTo)/2)+'" y="'+((y1+y2)/2+4)+'" text-anchor="middle" font-size="12" font-family="IBM Plex Mono, monospace" fill="#f4f1e8" font-weight="600">'+cell.count+'</text>';
+        });
+      } else if (viewMode==="ballpos"){
+        declutterPitch(balls).forEach(function(b){
+          var posColor = ballPositionColor(b.ballNo);
+          var big = b.outcome!=="_none" && (outcomeMap[b.outcome].id==="4"||outcomeMap[b.outcome].id==="6"||outcomeMap[b.outcome].id==="W");
+          var r = big?7:5.5;
+          html += '<circle cx="'+b.dx+'" cy="'+b.dy+'" r="'+r+'" fill="'+posColor+'" stroke="#0a1420" stroke-width="1.3" opacity="0.95"/>';
+          if (hasWagon(b)) html += '<circle cx="'+b.dx+'" cy="'+b.dy+'" r="'+(r+2.5)+'" fill="none" stroke="'+posColor+'" stroke-width="1" opacity="0.5"/>';
+          if (b.ballNo) html += '<text x="'+b.dx+'" y="'+(b.dy+3.2)+'" text-anchor="middle" font-size="'+(r>=7?9:7.5)+'" font-family="IBM Plex Mono, monospace" font-weight="700" fill="#0a1420">'+b.ballNo+'</text>';
         });
       } else {
         declutterPitch(balls).forEach(function(b){
@@ -747,7 +761,7 @@ function showPremiumLockedMessage(){
       html += '<div class="pm-seg"><button data-action="set-idleview" data-view="ground" class="'+(state.idleView==="ground"?"active":"")+'">Wagon wheel</button><button data-action="set-idleview" data-view="pitch" class="'+(state.idleView==="pitch"?"active":"")+'">Pitch map</button></div>';
     }
     if (state.mode==="combined" && !pd && state.idleView==="pitch"){
-      html += '<div class="pm-seg"><button data-action="set-view" data-view="dots" class="'+(state.viewMode==="dots"?"active":"")+'">Dots</button><button data-action="set-view" data-view="heat" class="'+(state.viewMode==="heat"?"active":"")+'">Heat grid</button></div>';
+      html += '<div class="pm-seg"><button data-action="set-view" data-view="dots" class="'+(state.viewMode==="dots"?"active":"")+'">Dots</button><button data-action="set-view" data-view="heat" class="'+(state.viewMode==="heat"?"active":"")+'">Heat grid</button><button data-action="set-view" data-view="ballpos" class="'+(state.viewMode==="ballpos"?"active":"")+'">By ball #</button></div>';
     }
     html += '<div class="pm-seg"><button data-action="set-ballcondition" data-val="New" class="'+(state.conditions.ballCondition==="New"?"active":"")+'">New</button><button data-action="set-ballcondition" data-val="Semi" class="'+(state.conditions.ballCondition==="Semi"?"active":"")+'">Semi</button><button data-action="set-ballcondition" data-val="Old" class="'+(state.conditions.ballCondition==="Old"?"active":"")+'">Old</button></div>';
     html += '</div><div class="pm-over-indicator">'+visible.length+' balls</div></div>';
@@ -760,7 +774,11 @@ function showPremiumLockedMessage(){
       html += '<div class="pm-mark-btn-wrap"><button class="pm-btn" data-action="start-delivery" '+(canStart?"":"disabled")+'>+ Mark new delivery</button></div>';
       html += '</div>';
       html += '<div class="pm-legend-row">';
-      OUTCOMES.forEach(function(o){ html += '<span><span class="pm-legend-dot" style="background:'+o.color+'"></span>'+o.label+'</span>'; });
+      if (state.viewMode==="ballpos"){
+        BALL_POSITION_COLORS.forEach(function(c,i){ html += '<span><span class="pm-legend-dot" style="background:'+c+'"></span>Ball '+(i+1)+' of over</span>'; });
+      } else {
+        OUTCOMES.forEach(function(o){ html += '<span><span class="pm-legend-dot" style="background:'+o.color+'"></span>'+o.label+'</span>'; });
+      }
       html += '</div>';
     } else if (state.mode==="combined") {
       html += '<div class="pm-pitch-wrap" id="combo-wrap">';
@@ -880,6 +898,8 @@ function showPremiumLockedMessage(){
     html += outcomeColumnsTable(FORMAT_PHASES[state.format].map(function(p){ return { label:p, balls: visible.filter(function(b){return b.phase===p;}) }; }));
     html += '<div class="pm-seam"></div><div class="pm-panel-title" style="font-size:12.5px">Ball condition</div>';
     html += outcomeColumnsTable(["New","Semi","Old"].map(function(bc){ return { label:bc, balls: visible.filter(function(b){return b.ballCondition===bc;}) }; }).filter(function(r){return r.balls.length>0;}));
+    html += '<div class="pm-seam"></div><div class="pm-panel-title" style="font-size:12.5px">By ball in over</div>';
+    html += outcomeColumnsTable([1,2,3,4,5,6].map(function(n){ return { label:"Ball "+n, balls: visible.filter(function(b){return b.ballNo===n;}) }; }).filter(function(r){return r.balls.length>0;}));
     html += '</div>';
 
     html += '<div class="pm-panel"><div class="pm-panel-title">Dismissals <span class="dim">'+dismissals.length+'</span></div>';
@@ -1478,6 +1498,9 @@ function showPremiumLockedMessage(){
         html += printOutcomeColumnsTable(bowlLineLabels.map(function(label,i){ return { label:label, balls: balls.filter(function(d){return lineZoneIndex(d.xPct)===i;}) }; }));
         html += '<div class="pr-section-title">Ball condition</div>';
         html += printOutcomeColumnsTable(["New","Semi","Old"].map(function(bc){ return { label:bc, balls: balls.filter(function(d){return d.ballCondition===bc;}) }; }).filter(function(r){return r.balls.length>0;}));
+        var bowlBallsWithOversAT = withOvers(balls);
+        html += '<div class="pr-section-title">By ball in over</div>';
+        html += printOutcomeColumnsTable([1,2,3,4,5,6].map(function(n){ return { label:"Ball "+n, balls: bowlBallsWithOversAT.filter(function(d){return d.ballNo===n;}) }; }).filter(function(r){return r.balls.length>0;}));
         html += '<table class="pr-table"><tr><th>vs</th><th>Outcome</th><th>Length</th><th>Line</th></tr>';
         balls.forEach(function(d){
           var o = outcomeMap[d.outcome], lz = lengthZoneFor(d.yPct), ln = lineLabel(d.xPct, d.batterHand);
@@ -1500,6 +1523,9 @@ function showPremiumLockedMessage(){
         html += printOutcomeColumnsTable(batLineLabels.map(function(label,i){ return { label:label, balls: bballs.filter(function(d){return lineZoneIndex(d.xPct)===i;}) }; }));
         html += '<div class="pr-section-title">Ball condition</div>';
         html += printOutcomeColumnsTable(["New","Semi","Old"].map(function(bc){ return { label:bc, balls: bballs.filter(function(d){return d.ballCondition===bc;}) }; }).filter(function(r){return r.balls.length>0;}));
+        var batBallsWithOversAT = withOvers(bballs);
+        html += '<div class="pr-section-title">By ball in over</div>';
+        html += printOutcomeColumnsTable([1,2,3,4,5,6].map(function(n){ return { label:"Ball "+n, balls: batBallsWithOversAT.filter(function(d){return d.ballNo===n;}) }; }).filter(function(r){return r.balls.length>0;}));
         html += '<table class="pr-table"><tr><th>Bowler</th><th>Outcome</th><th>Length</th><th>Line</th></tr>';
         bballs.forEach(function(d){
           var o = outcomeMap[d.outcome], lz = lengthZoneFor(d.yPct), ln = lineLabel(d.xPct, bb.hand);
@@ -1544,6 +1570,9 @@ function showPremiumLockedMessage(){
       html += printOutcomeColumnsTable(FORMAT_PHASES[state.format].map(function(p){ return { label:p, balls: balls.filter(function(d){return d.phase===p;}) }; }));
       html += '<div class="pr-section-title">Ball condition</div>';
       html += printOutcomeColumnsTable(["New","Semi","Old"].map(function(bc){ return { label:bc, balls: balls.filter(function(d){return d.ballCondition===bc;}) }; }).filter(function(r){return r.balls.length>0;}));
+      var bowlBallsWithOversP = withOvers(balls);
+      html += '<div class="pr-section-title">By ball in over</div>';
+      html += printOutcomeColumnsTable([1,2,3,4,5,6].map(function(n){ return { label:"Ball "+n, balls: bowlBallsWithOversP.filter(function(d){return d.ballNo===n;}) }; }).filter(function(r){return r.balls.length>0;}));
       html += '<table class="pr-table"><tr><th>Ball</th><th>vs</th><th>Outcome</th><th>Length</th><th>Line</th><th>Phase</th></tr>';
       withOvers(balls).forEach(function(d){
         var o = outcomeMap[d.outcome], lz = lengthZoneFor(d.yPct), ln = lineLabel(d.xPct, d.batterHand);
@@ -1583,6 +1612,9 @@ function showPremiumLockedMessage(){
       html += printOutcomeColumnsTable(FORMAT_PHASES[state.format].map(function(p){ return { label:p, balls: balls.filter(function(d){return d.phase===p;}) }; }));
       html += '<div class="pr-section-title">Ball condition</div>';
       html += printOutcomeColumnsTable(["New","Semi","Old"].map(function(bc){ return { label:bc, balls: balls.filter(function(d){return d.ballCondition===bc;}) }; }).filter(function(r){return r.balls.length>0;}));
+      var batBallsWithOversP = withOvers(balls);
+      html += '<div class="pr-section-title">By ball in over</div>';
+      html += printOutcomeColumnsTable([1,2,3,4,5,6].map(function(n){ return { label:"Ball "+n, balls: batBallsWithOversP.filter(function(d){return d.ballNo===n;}) }; }).filter(function(r){return r.balls.length>0;}));
       html += '<table class="pr-table"><tr><th>Ball</th><th>Bowler</th><th>Outcome</th><th>Shot</th><th>Length</th><th>Line</th><th>Phase</th></tr>';
       withOvers(balls).forEach(function(d){
         var o = outcomeMap[d.outcome], lz = lengthZoneFor(d.yPct), ln = lineLabel(d.xPct, b.hand);
