@@ -281,6 +281,9 @@ function showPremiumLockedMessage(){
   function lineLabel(xPct, hand){ return (hand==="LHB"?LINE_LABELS_LHB:LINE_LABELS_RHB)[lineZoneIndex(xPct)]; }
   function clamp(n,lo,hi){ return Math.max(lo, Math.min(hi, n)); }
   function uid(){ return Math.random().toString(36).slice(2,10); }
+  function freshPendingDelivery(){
+    return { xPct:null, yPct:null, wagonX:null, wagonY:null, shotType:null, dismissal:null, ballCondition:state.conditions.ballCondition||"", stage:"mark-pitch" };
+  }
   function hasWagon(b){ return b.wagonX!==null && b.wagonX!==undefined; }
   function esc(s){ return String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;"); }
   function keyName(n){ return (n||"").trim().toLowerCase(); }
@@ -362,7 +365,7 @@ function showPremiumLockedMessage(){
   function withOvers(balls){
     var legit = 0;
     return balls.map(function(b){
-      var over = Math.floor(legit/6)+1, ballNo = (legit%6)+1;
+      var over = Math.floor(legit/6), ballNo = (legit%6)+1;
       if (b.outcome!=="wd" && b.outcome!=="nb") legit++;
       return Object.assign({}, b, { over:over, ballNo:ballNo });
     });
@@ -661,6 +664,13 @@ function showPremiumLockedMessage(){
     var visible = withOvers(visibleDeliveries());
     var st = statsFor(visible);
     var dismissals = visible.filter(function(d){return d.outcome==="W";});
+    // Auto-advance: ready for the next tap the moment a bowler AND
+    // batter are both selected — a commit hands back a fresh mark-pitch
+    // state directly instead of clearing to null, so there's no
+    // separate "start" action needed once a matchup is set.
+    if (state.mode==="combined" && !state.pendingDelivery && bowler && batter){
+      state.pendingDelivery = freshPendingDelivery();
+    }
     var pd = state.pendingDelivery;
 
     var html = "";
@@ -757,10 +767,10 @@ function showPremiumLockedMessage(){
     html += '</div>';
 
     html += '<div class="pm-toolbar"><div style="display:flex;gap:8px;flex-wrap:wrap;">';
-    if (state.mode==="combined" && !pd){
+    if (state.mode==="combined" && (!pd || pd.stage==="mark-pitch")){
       html += '<div class="pm-seg"><button data-action="set-idleview" data-view="ground" class="'+(state.idleView==="ground"?"active":"")+'">Wagon wheel</button><button data-action="set-idleview" data-view="pitch" class="'+(state.idleView==="pitch"?"active":"")+'">Pitch map</button></div>';
     }
-    if (state.mode==="combined" && !pd && state.idleView==="pitch"){
+    if (state.mode==="combined" && (!pd || pd.stage==="mark-pitch") && state.idleView==="pitch"){
       html += '<div class="pm-seg"><button data-action="set-view" data-view="dots" class="'+(state.viewMode==="dots"?"active":"")+'">Dots</button><button data-action="set-view" data-view="heat" class="'+(state.viewMode==="heat"?"active":"")+'">Heat grid</button><button data-action="set-view" data-view="ballpos" class="'+(state.viewMode==="ballpos"?"active":"")+'">By ball #</button></div>';
     }
     html += '<div class="pm-seg"><button data-action="set-ballcondition" data-val="New" class="'+(state.conditions.ballCondition==="New"?"active":"")+'">New</button><button data-action="set-ballcondition" data-val="Semi" class="'+(state.conditions.ballCondition==="Semi"?"active":"")+'">Semi</button><button data-action="set-ballcondition" data-val="Old" class="'+(state.conditions.ballCondition==="Old"?"active":"")+'">Old</button></div>';
@@ -768,35 +778,22 @@ function showPremiumLockedMessage(){
 
     var canStart = bowler && batter;
 
-    if (state.mode==="combined" && !pd && state.idleView==="pitch"){
-      html += '<div class="pm-pitch-wrap" id="pitch-wrap">'+pitchSvgMarkup(state.viewMode, visible, null, "pitch-svg", false);
-      if (visible.length===0) html += '<div class="pm-empty-hint">'+(canStart?'Tap "+ Mark new delivery" below to start logging':"Pick a bowler and a batter above first")+'</div>';
-      html += '<div class="pm-mark-btn-wrap"><button class="pm-btn" data-action="start-delivery" '+(canStart?"":"disabled")+'>+ Mark new delivery</button></div>';
-      html += '</div>';
-      html += '<div class="pm-legend-row">';
-      if (state.viewMode==="ballpos"){
-        BALL_POSITION_COLORS.forEach(function(c,i){ html += '<span><span class="pm-legend-dot" style="background:'+c+'"></span>Ball '+(i+1)+' of over</span>'; });
-      } else {
-        OUTCOMES.forEach(function(o){ html += '<span><span class="pm-legend-dot" style="background:'+o.color+'"></span>'+o.label+'</span>'; });
-      }
-      html += '</div>';
-    } else if (state.mode==="combined") {
+    if (state.mode==="combined") {
       html += '<div class="pm-pitch-wrap" id="combo-wrap">';
       if (!canStart){
         html += '<div class="pm-empty-hint" style="position:static;">Pick a bowler and a batter above to start logging deliveries.</div>';
       } else if (pd && pd.stage==="mark-pitch"){
-        html += pitchSvgMarkup("dots", withOvers(state.deliveries.filter(function(d){return d.bowlerId===state.currentBowlerId && d.batterId===state.currentBatterId;})), null, "pitch-svg2", false);
-        html += '<div class="pm-corner-btn"><button class="pm-btn small secondary" data-action="cancel-delivery">Cancel</button></div>';
+        html += pitchSvgMarkup(state.viewMode, withOvers(state.deliveries.filter(function(d){return d.bowlerId===state.currentBowlerId && d.batterId===state.currentBatterId;})), null, "pitch-svg2", false);
+        html += '<div class="pm-corner-btn" style="display:flex;gap:6px;">';
+        if (visible.length>0 && !pd.shotType) html += '<button class="pm-btn small secondary" data-action="repeat-last-ball">&#8635; Same as last</button>';
+        html += '<button class="pm-btn small secondary" data-action="cancel-delivery">Cancel</button>';
+        html += '</div>';
       } else {
         var pendingShotXY = (pd && pd.wagonX!==null) ? { x:pd.wagonX, y:pd.wagonY } : null;
         var refField = curBowler() ? latestFieldForBowler(state.currentBowlerId) : null;
         html += groundSvgMarkup(hand, visible, pendingShotXY, "ground-svg", false, refField?refField.positions:null, 0.4);
         if (pd && pd.stage==="awaiting-shot"){
           html += '<div class="pm-corner-btn"><button class="pm-btn small secondary" data-action="skip-shot">Skip &rarr;</button></div>';
-        } else if (!pd) {
-          html += '<div class="pm-mark-btn-wrap" style="display:flex;gap:8px;"><button class="pm-btn" data-action="start-delivery">+ Mark new delivery</button>';
-          if (visible.length>0) html += '<button class="pm-btn secondary" data-action="repeat-last-ball">&#8635; Repeat last</button>';
-          html += '</div>';
         }
         if (pd && pd.stage==="shot-type"){
           var posS = popoverStyle(pd, 196, 190);
@@ -820,8 +817,12 @@ function showPremiumLockedMessage(){
       }
       html += '</div>';
       html += '<div class="pm-legend-row">';
-      OUTCOMES.forEach(function(o){ if(o.id!=="wd"&&o.id!=="nb") html += '<span><span class="pm-legend-dot" style="background:'+o.color+'"></span>'+o.label+'</span>'; });
-      if (curBowler() && latestFieldForBowler(state.currentBowlerId)) html += '<span><span class="pm-legend-dot" style="background:rgba(238,242,246,0.85)"></span>Field set for '+esc(curBowler().name)+' (faint)</span>';
+      if (state.viewMode==="ballpos"){
+        BALL_POSITION_COLORS.forEach(function(c,i){ html += '<span><span class="pm-legend-dot" style="background:'+c+'"></span>Ball '+(i+1)+' of over</span>'; });
+      } else {
+        OUTCOMES.forEach(function(o){ if(o.id!=="wd"&&o.id!=="nb") html += '<span><span class="pm-legend-dot" style="background:'+o.color+'"></span>'+o.label+'</span>'; });
+        if (curBowler() && latestFieldForBowler(state.currentBowlerId)) html += '<span><span class="pm-legend-dot" style="background:rgba(238,242,246,0.85)"></span>Field set for '+esc(curBowler().name)+' (faint)</span>';
+      }
       html += '</div>';
     } else {
       // ---------- field placement ----------
@@ -1314,12 +1315,12 @@ function showPremiumLockedMessage(){
       if (pd && pd.stage==="outcome"){
         var outcomeId = el.getAttribute("data-outcome");
         if (outcomeId==="W"){ pd.outcome = "W"; pd.stage = "dismissal"; render(); }
-        else { commitFullDelivery(pd, outcomeId, null); state.pendingDelivery = null; autoSaveSession(); render(); }
+        else { commitFullDelivery(pd, outcomeId, null); state.pendingDelivery = freshPendingDelivery(); autoSaveSession(); render(); }
       }
     }
     else if (action==="commit-dismissal"){
       var pd2 = state.pendingDelivery;
-      if (pd2 && pd2.stage==="dismissal"){ commitFullDelivery(pd2, "W", el.getAttribute("data-dismissal")); state.pendingDelivery = null; autoSaveSession(); render(); }
+      if (pd2 && pd2.stage==="dismissal"){ commitFullDelivery(pd2, "W", el.getAttribute("data-dismissal")); state.pendingDelivery = freshPendingDelivery(); autoSaveSession(); render(); }
     }
     else if (action==="remove-delivery"){ var id = el.getAttribute("data-id"); state.deliveries = state.deliveries.filter(function(d){return d.id!==id;}); render(); }
     else if (action==="undo"){ state.deliveries = state.deliveries.slice(0,-1); render(); }

@@ -339,6 +339,9 @@ function showPremiumLockedMessage(){
     return html;
   }
   function uid(){ return Math.random().toString(36).slice(2,10); }
+  function freshPendingDelivery(){
+    return { xPct:null, yPct:null, wagonX:null, wagonY:null, shotType:null, dismissal:null, footwork:null, beaten:false, ballCondition:state.conditions.ballCondition||"", stage:"mark-pitch" };
+  }
   function hasWagon(b){ return b.wagonX!==null && b.wagonX!==undefined; }
   function bowlTypeText(b){
     if (b.bowlPace==="Spin" && b.bowlSpin && b.bowlArm==="LA"){
@@ -378,7 +381,7 @@ function showPremiumLockedMessage(){
   function withOvers(balls){
     var legit = 0;
     return balls.map(function(b){
-      var over = Math.floor(legit/6)+1, ballNo = (legit%6)+1;
+      var over = Math.floor(legit/6), ballNo = (legit%6)+1;
       if (b.outcome!=="wd" && b.outcome!=="nb") legit++;
       return Object.assign({}, b, { over:over, ballNo:ballNo });
     });
@@ -691,6 +694,13 @@ function showPremiumLockedMessage(){
 
     var lastLegit = st.legit.length;
     var oversDone = Math.floor(lastLegit/6), ballIntoOver = lastLegit%6;
+    // Auto-advance: always ready for the next tap, regardless of which
+    // idle sub-view (Wagon wheel / Pitch map) was showing — a commit now
+    // hands back a fresh mark-pitch state directly instead of clearing
+    // to null, so there's no separate "start" action needed.
+    if (!state.pendingDelivery && batter){
+      state.pendingDelivery = freshPendingDelivery();
+    }
     var pd = state.pendingDelivery;
 
     var html = "";
@@ -718,7 +728,7 @@ function showPremiumLockedMessage(){
     if (!pd || pd.stage==="mark-pitch"){
       html += '<div class="pm-seg"><button data-action="set-idleview" data-view="ground" class="'+(state.idleView==="ground"?"active":"")+'">Wagon wheel</button><button data-action="set-idleview" data-view="pitch" class="'+(state.idleView==="pitch"?"active":"")+'">Pitch map</button></div>';
     }
-    if (!pd && state.idleView==="pitch"){
+    if (state.idleView==="pitch" && (!pd || pd.stage==="mark-pitch")){
       html += '<div class="pm-seg"><button data-action="set-view" data-view="dots" class="'+(state.viewMode==="dots"?"active":"")+'">Dots</button><button data-action="set-view" data-view="heat" class="'+(state.viewMode==="heat"?"active":"")+'">Heat grid</button><button data-action="set-view" data-view="ballpos" class="'+(state.viewMode==="ballpos"?"active":"")+'">By ball #</button></div>';
     }
     html += '</div><div class="pm-over-indicator">Ov '+oversDone+'.'+ballIntoOver+' &middot; '+visibleBalls.length+' balls</div></div>';
@@ -780,68 +790,55 @@ function showPremiumLockedMessage(){
       html += '</div>';
     }
 
-    if (!pd && state.idleView==="pitch"){
-      html += '<div class="pm-pitch-wrap" id="pitch-wrap">'+pitchSvgMarkup(batter, state.viewMode, visibleBalls, null, "pitch-svg", false);
-      if (batter.balls.length===0) html += '<div class="pm-empty-hint">Tap "+ Mark new delivery" below to start logging</div>';
-      html += '<div class="pm-mark-btn-wrap" style="display:flex;gap:8px;"><button class="pm-btn" data-action="start-delivery">+ Mark new delivery</button>';
-      if (batter.balls.length>0) html += '<button class="pm-btn secondary" data-action="repeat-last-ball">&#8635; Repeat last</button>';
-      html += '</div>';
-      html += '</div>';
-      html += '<div class="pm-legend-row">';
-      if (state.viewMode==="ballpos"){
-        BALL_POSITION_COLORS.forEach(function(c,i){ html += '<span><span class="pm-legend-dot" style="background:'+c+'"></span>Ball '+(i+1)+' of over</span>'; });
-      } else {
-        if (batter.balls.some(function(b){return b.outcome==="_none";})) html += '<span><span class="pm-legend-dot" style="background:transparent;border:1.4px solid #eef2f6"></span>Pitched (no outcome, older data)</span>';
-        OUTCOMES.forEach(function(o){ html += '<span><span class="pm-legend-dot" style="background:'+o.color+'"></span>'+o.label+'</span>'; });
-      }
+    html += '<div class="pm-pitch-wrap" id="combo-wrap">';
+    if (pd && pd.stage==="mark-pitch"){
+      html += pitchSvgMarkup(batter, state.viewMode, visibleBalls, null, "pitch-svg2", false);
+      html += '<div class="pm-corner-btn" style="display:flex;gap:6px;">';
+      if (batter.balls.length>0 && !pd.shotType && !pd.footwork) html += '<button class="pm-btn small secondary" data-action="repeat-last-ball">&#8635; Same as last</button>';
+      html += '<button class="pm-btn small secondary" data-action="cancel-delivery">Cancel</button>';
       html += '</div>';
     } else {
-      html += '<div class="pm-pitch-wrap" id="combo-wrap">';
-      if (pd && pd.stage==="mark-pitch"){
-        html += pitchSvgMarkup(batter, "dots", batter.balls.filter(passesFilter), null, "pitch-svg2", false);
-        html += '<div class="pm-corner-btn"><button class="pm-btn small secondary" data-action="cancel-delivery">Cancel</button></div>';
-      } else {
-        var pendingShotXY = (pd && pd.wagonX!==null) ? { x:pd.wagonX, y:pd.wagonY } : null;
-        html += groundSvgMarkup(batter, batter.balls.filter(passesFilter), pendingShotXY, "ground-svg", false);
-        if (pd && pd.stage==="awaiting-shot"){
-          html += '<div class="pm-corner-btn"><button class="pm-btn small secondary" data-action="skip-shot">Skip &rarr;</button></div>';
-        } else if (!pd) {
-          html += '<div class="pm-mark-btn-wrap" style="display:flex;gap:8px;"><button class="pm-btn" data-action="start-delivery">+ Mark new delivery</button>';
-          if (batter.balls.length>0) html += '<button class="pm-btn secondary" data-action="repeat-last-ball">&#8635; Repeat last</button>';
-          html += '</div>';
-        }
-        if (pd && pd.stage==="shot-type"){
-          var posS = popoverStyle(pd, 196, 258);
-          html += '<div class="pm-popover" style="left:'+posS.left+'px;top:'+posS.top+'px;grid-template-columns:repeat(2,1fr);width:186px;">';
-          html += '<div style="grid-column:1/-1;display:flex;gap:3px;">';
-          [["Front-foot","FF"],["Back-foot","BF"],["No movement","—"]].forEach(function(fw){
-            var on = pd.footwork===fw[0];
-            html += '<button data-action="set-footwork" data-footwork="'+fw[0]+'" style="flex:1;padding:6px 2px;font-size:9.5px;font-weight:700;border-radius:6px;border:1px solid '+(on?"var(--accent)":"var(--card-border)")+';background:'+(on?"var(--accent)":"var(--card)")+';color:'+(on?"#04140d":"var(--text-dim)")+';cursor:pointer;">'+fw[1]+'</button>';
-          });
-          html += '</div>';
-          html += '<button data-action="toggle-beaten" style="grid-column:1/-1;padding:6px;font-size:10px;font-weight:700;border-radius:6px;border:1px solid '+(pd.beaten?"var(--danger)":"var(--card-border)")+';background:'+(pd.beaten?"rgba(255,107,82,0.18)":"var(--card)")+';color:'+(pd.beaten?"var(--danger)":"var(--text-dim)")+';cursor:pointer;">'+(pd.beaten?"&#10003; Beaten / false shot":"Mark as beaten / false shot")+'</button>';
-          SHOT_TYPES.forEach(function(s){ html += '<button class="pm-outcome-btn" style="background:#e0ab2c" data-action="commit-shottype" data-shottype="'+s+'">'+s+'</button>'; });
-          html += '<button class="pm-outcome-btn" style="background:var(--card);color:var(--text);border:1px solid var(--card-border);" data-action="skip-shottype">Skip</button>';
-          html += '</div>';
-        }
-        if (pd && pd.stage==="outcome"){
-          var pos2 = popoverStyle(pd, 196, 126);
-          html += '<div class="pm-popover" style="left:'+pos2.left+'px;top:'+pos2.top+'px;">';
-          OUTCOMES.forEach(function(o){ html += '<button class="pm-outcome-btn" style="background:'+o.color+'" data-action="commit-delivery" data-outcome="'+o.id+'">'+o.label+'</button>'; });
-          html += '</div>';
-        }
-        if (pd && pd.stage==="dismissal"){
-          var pos3 = popoverStyle(pd, 186, 168);
-          html += '<div class="pm-popover" style="left:'+pos3.left+'px;top:'+pos3.top+'px;grid-template-columns:repeat(2,1fr);width:170px;">';
-          DISMISSAL_TYPES.forEach(function(dt){ html += '<button class="pm-outcome-btn" style="background:#ff6b52" data-action="commit-dismissal" data-dismissal="'+dt+'">'+dt+'</button>'; });
-          html += '</div>';
-        }
+      var pendingShotXY = (pd && pd.wagonX!==null) ? { x:pd.wagonX, y:pd.wagonY } : null;
+      html += groundSvgMarkup(batter, batter.balls.filter(passesFilter), pendingShotXY, "ground-svg", false);
+      if (pd && pd.stage==="awaiting-shot"){
+        html += '<div class="pm-corner-btn"><button class="pm-btn small secondary" data-action="skip-shot">Skip &rarr;</button></div>';
       }
-      html += '</div>';
-      html += '<div class="pm-legend-row">';
-      OUTCOMES.forEach(function(o){ if(o.id!=="wd"&&o.id!=="nb") html += '<span><span class="pm-legend-dot" style="background:'+o.color+'"></span>'+o.label+'</span>'; });
-      html += '</div>';
+      if (pd && pd.stage==="shot-type"){
+        var posS = popoverStyle(pd, 196, 258);
+        html += '<div class="pm-popover" style="left:'+posS.left+'px;top:'+posS.top+'px;grid-template-columns:repeat(2,1fr);width:186px;">';
+        html += '<div style="grid-column:1/-1;display:flex;gap:3px;">';
+        [["Front-foot","FF"],["Back-foot","BF"],["No movement","—"]].forEach(function(fw){
+          var on = pd.footwork===fw[0];
+          html += '<button data-action="set-footwork" data-footwork="'+fw[0]+'" style="flex:1;padding:6px 2px;font-size:9.5px;font-weight:700;border-radius:6px;border:1px solid '+(on?"var(--accent)":"var(--card-border)")+';background:'+(on?"var(--accent)":"var(--card)")+';color:'+(on?"#04140d":"var(--text-dim)")+';cursor:pointer;">'+fw[1]+'</button>';
+        });
+        html += '</div>';
+        html += '<button data-action="toggle-beaten" style="grid-column:1/-1;padding:6px;font-size:10px;font-weight:700;border-radius:6px;border:1px solid '+(pd.beaten?"var(--danger)":"var(--card-border)")+';background:'+(pd.beaten?"rgba(255,107,82,0.18)":"var(--card)")+';color:'+(pd.beaten?"var(--danger)":"var(--text-dim)")+';cursor:pointer;">'+(pd.beaten?"&#10003; Beaten / false shot":"Mark as beaten / false shot")+'</button>';
+        SHOT_TYPES.forEach(function(s){ html += '<button class="pm-outcome-btn" style="background:#e0ab2c" data-action="commit-shottype" data-shottype="'+s+'">'+s+'</button>'; });
+        html += '<button class="pm-outcome-btn" style="background:var(--card);color:var(--text);border:1px solid var(--card-border);" data-action="skip-shottype">Skip</button>';
+        html += '</div>';
+      }
+      if (pd && pd.stage==="outcome"){
+        var pos2 = popoverStyle(pd, 196, 126);
+        html += '<div class="pm-popover" style="left:'+pos2.left+'px;top:'+pos2.top+'px;">';
+        OUTCOMES.forEach(function(o){ html += '<button class="pm-outcome-btn" style="background:'+o.color+'" data-action="commit-delivery" data-outcome="'+o.id+'">'+o.label+'</button>'; });
+        html += '</div>';
+      }
+      if (pd && pd.stage==="dismissal"){
+        var pos3 = popoverStyle(pd, 186, 168);
+        html += '<div class="pm-popover" style="left:'+pos3.left+'px;top:'+pos3.top+'px;grid-template-columns:repeat(2,1fr);width:170px;">';
+        DISMISSAL_TYPES.forEach(function(dt){ html += '<button class="pm-outcome-btn" style="background:#ff6b52" data-action="commit-dismissal" data-dismissal="'+dt+'">'+dt+'</button>'; });
+        html += '</div>';
+      }
     }
+    html += '</div>';
+    html += '<div class="pm-legend-row">';
+    if (state.viewMode==="ballpos"){
+      BALL_POSITION_COLORS.forEach(function(c,i){ html += '<span><span class="pm-legend-dot" style="background:'+c+'"></span>Ball '+(i+1)+' of over</span>'; });
+    } else {
+      if (batter.balls.some(function(b){return b.outcome==="_none";})) html += '<span><span class="pm-legend-dot" style="background:transparent;border:1.4px solid #eef2f6"></span>Pitched (no outcome, older data)</span>';
+      OUTCOMES.forEach(function(o){ if(o.id!=="wd"&&o.id!=="nb") html += '<span><span class="pm-legend-dot" style="background:'+o.color+'"></span>'+o.label+'</span>'; });
+    }
+    html += '</div>';
 
     html += '<div class="pm-btn-row">';
     html += '<button class="pm-btn" data-action="save">Save session</button>';
@@ -1283,7 +1280,7 @@ function showPremiumLockedMessage(){
           var bp1 = currentBowlerProfile();
           var drillHit1 = evaluateDrillHit(pd);
           cb().balls.push({ id:uid(), xPct:pd.xPct, yPct:pd.yPct, wagonX:pd.wagonX, wagonY:pd.wagonY, shotType:pd.shotType, outcome:outcomeId, dismissal:null, footwork:pd.footwork, beaten:!!pd.beaten, ballCondition:pd.ballCondition||"", drillHit:drillHit1, bowlArm:bp1.bowlArm, bowlPace:bp1.bowlPace, bowlSpin:bp1.bowlSpin, bowlSide:bp1.bowlSide, t:Date.now() });
-          state.pendingDelivery = null; autoSaveSession(); render();
+          state.pendingDelivery = freshPendingDelivery(); autoSaveSession(); render();
         }
       }
     }
@@ -1293,7 +1290,7 @@ function showPremiumLockedMessage(){
         var bp2 = currentBowlerProfile();
         var drillHit2 = evaluateDrillHit(pd2);
         cb().balls.push({ id:uid(), xPct:pd2.xPct, yPct:pd2.yPct, wagonX:pd2.wagonX, wagonY:pd2.wagonY, shotType:pd2.shotType, outcome:"W", dismissal:el.getAttribute("data-dismissal"), footwork:pd2.footwork, beaten:!!pd2.beaten, ballCondition:pd2.ballCondition||"", drillHit:drillHit2, bowlArm:bp2.bowlArm, bowlPace:bp2.bowlPace, bowlSpin:bp2.bowlSpin, bowlSide:bp2.bowlSide, t:Date.now() });
-        state.pendingDelivery = null; autoSaveSession(); render();
+        state.pendingDelivery = freshPendingDelivery(); autoSaveSession(); render();
       }
     }
     else if (action==="remove-ball"){ var id = el.getAttribute("data-id"); cb().balls = cb().balls.filter(function(b){return b.id!==id;}); render(); }

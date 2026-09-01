@@ -305,6 +305,13 @@ function showPremiumLockedMessage(){
   function bowlTypeLabel(b){ return bowlTypeText(b)+" &middot; "+(b.bowlSide==="Around"?"Around the wkt":"Over the wkt"); }
   function clamp(n,lo,hi){ return Math.max(lo, Math.min(hi, n)); }
   function uid(){ return Math.random().toString(36).slice(2,10); }
+  // Shared shape for a fresh, ready-to-mark delivery — used both when
+  // first entering the marking view and immediately after committing a
+  // ball, so the pitch is always ready for the next tap without a
+  // separate "start" action in between.
+  function freshPendingDelivery(){
+    return { xPct:null, yPct:null, wagonX:null, wagonY:null, dismissal:null, deliveryType:null, beaten:false, ballCondition:state.conditions.ballCondition||"", stage:"mark-pitch" };
+  }
   function hasWagon(b){ return b.wagonX!==null && b.wagonX!==undefined; }
 
   function declutterPitch(balls){
@@ -337,7 +344,7 @@ function showPremiumLockedMessage(){
   function withOvers(balls){
     var legit = 0;
     return balls.map(function(b){
-      var over = Math.floor(legit/6)+1, ballNo = (legit%6)+1;
+      var over = Math.floor(legit/6), ballNo = (legit%6)+1;
       if (b.outcome!=="wd" && b.outcome!=="nb") legit++;
       return Object.assign({}, b, { over:over, ballNo:ballNo });
     });
@@ -689,6 +696,14 @@ function showPremiumLockedMessage(){
 
     var lastLegit = st.legit.length;
     var oversDone = Math.floor(lastLegit/6), ballIntoOver = lastLegit%6;
+    // Auto-advance: the marking view should always be ready for the next
+    // tap, with no separate "start" action needed — this covers both the
+    // very first ball (landing here with nothing pending yet) and every
+    // ball after, since a commit now hands back a fresh mark-pitch state
+    // directly instead of clearing to null.
+    if (state.mode==="combined" && !state.pendingDelivery && bowler){
+      state.pendingDelivery = freshPendingDelivery();
+    }
     var pd = state.pendingDelivery;
 
     var html = "";
@@ -790,17 +805,15 @@ function showPremiumLockedMessage(){
       html += '<div class="pm-pitch-wrap" id="combo-wrap">';
       if (pd && pd.stage==="mark-pitch"){
         html += pitchSvgMarkup(bowler, "dots", bowler.balls.filter(passesFilter), null, "pitch-svg2", false);
-        html += '<div class="pm-corner-btn"><button class="pm-btn small secondary" data-action="cancel-delivery">Cancel</button></div>';
+        html += '<div class="pm-corner-btn" style="display:flex;gap:6px;">';
+        if (bowler.balls.length>0 && !pd.deliveryType) html += '<button class="pm-btn small secondary" data-action="repeat-last-ball">&#8635; Same as last</button>';
+        html += '<button class="pm-btn small secondary" data-action="cancel-delivery">Cancel</button>';
+        html += '</div>';
       } else {
         var pendingShotXY = (pd && pd.wagonX!==null) ? { x:pd.wagonX, y:pd.wagonY } : null;
         html += groundSvgMarkup(bowler, bowler.balls.filter(passesFilter), pendingShotXY, "ground-svg", false);
         if (pd && pd.stage==="awaiting-shot"){
           html += '<div class="pm-corner-btn"><button class="pm-btn small secondary" data-action="skip-shot">Skip &rarr;</button></div>';
-        } else if (!pd) {
-          html += '<div class="pm-mark-btn-wrap" style="display:flex;gap:8px;">';
-          html += '<button class="pm-btn" data-action="start-delivery">+ Mark new delivery</button>';
-          if (bowler.balls.length>0) html += '<button class="pm-btn secondary" data-action="repeat-last-ball">&#8635; Repeat last</button>';
-          html += '</div>';
         }
         if (pd && pd.stage==="outcome"){
           var pos2 = popoverStyle(pd, 226, 260);
@@ -1144,7 +1157,7 @@ function showPremiumLockedMessage(){
           var drillHit1 = evaluateDrillHit(pd);
           var bt1 = cb();
           cb().balls.push({ id:uid(), xPct:pd.xPct, yPct:pd.yPct, wagonX:pd.wagonX, wagonY:pd.wagonY, outcome:outcomeId, dismissal:null, deliveryType:pd.deliveryType, beaten:!!pd.beaten, ballCondition:pd.ballCondition||"", drillHit:drillHit1, bowlArm:bt1.bowlArm, bowlPace:bt1.bowlPace, bowlSpin:bt1.bowlSpin, bowlSide:bt1.bowlSide, t:Date.now() });
-          state.pendingDelivery = null;
+          state.pendingDelivery = freshPendingDelivery();
           autoSaveSession();
           render();
         }
@@ -1156,7 +1169,7 @@ function showPremiumLockedMessage(){
         var drillHit2 = evaluateDrillHit(pd2);
         var bt2 = cb();
         cb().balls.push({ id:uid(), xPct:pd2.xPct, yPct:pd2.yPct, wagonX:pd2.wagonX, wagonY:pd2.wagonY, outcome:"W", dismissal:el.getAttribute("data-dismissal"), deliveryType:pd2.deliveryType, beaten:!!pd2.beaten, ballCondition:pd2.ballCondition||"", drillHit:drillHit2, bowlArm:bt2.bowlArm, bowlPace:bt2.bowlPace, bowlSpin:bt2.bowlSpin, bowlSide:bt2.bowlSide, t:Date.now() });
-        state.pendingDelivery = null;
+        state.pendingDelivery = freshPendingDelivery();
         autoSaveSession();
         render();
       }
