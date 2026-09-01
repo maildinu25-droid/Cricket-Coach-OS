@@ -101,6 +101,13 @@
   .pm-x-btn:active{color:var(--danger);}
 
   .pm-popover{position:absolute;background:var(--card);border:1.5px solid var(--accent);border-radius:12px;padding:8px;box-shadow:0 12px 30px rgba(0,0,0,.5);display:grid;grid-template-columns:repeat(3,1fr);gap:5px;z-index:20;width:186px;}
+  .pm-detail-line{display:flex;flex-wrap:wrap;gap:5px;align-items:center;padding:8px 2px;margin-bottom:4px;}
+  .pm-detail-chip{font-family:'Inter',sans-serif;font-size:11px;font-weight:700;background:var(--card);border:1px solid var(--card-border);color:var(--text);border-radius:999px;padding:5px 11px;cursor:pointer;white-space:nowrap;}
+  .pm-detail-chip:active{border-color:var(--accent);}
+  .pm-detail-chip-wrap{position:relative;display:inline-block;}
+  .pm-detail-dropdown{position:absolute;top:calc(100% + 4px);left:0;background:var(--card);border:1.5px solid var(--accent);border-radius:10px;padding:5px;box-shadow:0 10px 24px rgba(0,0,0,.5);z-index:25;display:flex;flex-direction:column;gap:3px;min-width:140px;}
+  .pm-detail-dropdown button{font-family:'Inter',sans-serif;font-size:11.5px;font-weight:600;text-align:left;padding:7px 10px;border-radius:6px;border:1px solid transparent;background:transparent;color:var(--text-dim);cursor:pointer;white-space:nowrap;}
+  .pm-detail-dropdown button.active{background:var(--accent);color:#04140d;border-color:var(--accent);}
   .pm-outcome-btn{font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:700;border:none;border-radius:6px;padding:9px 4px;cursor:pointer;color:#04140d;min-height:36px;touch-action:manipulation;}
 
   .pm-empty-hint{position:absolute;bottom:10px;left:0;right:0;text-align:center;color:rgba(244,241,232,0.85);font-size:12px;font-style:italic;pointer-events:none;padding:0 12px;}
@@ -683,6 +690,27 @@ function showPremiumLockedMessage(){
     return html;
   }
 
+  // Renders one compact, tappable summary chip for the top detail line —
+  // shows the current value, and when tapped opens a small dropdown of
+  // the real options right below it, replacing what used to be a full,
+  // always-visible row of buttons per field. options is an array of
+  // {val, label}; setAction is the existing action name that already
+  // handles changing this field (unchanged, so no other logic moves).
+  function detailChip(chipId, displayValue, options, currentVal, setAction, dataAttrName){
+    var isOpen = state.openDetailChip === chipId;
+    var html = '<span class="pm-detail-chip-wrap">';
+    html += '<button class="pm-detail-chip" data-action="toggle-detail-chip" data-chip="'+chipId+'">'+esc(displayValue)+' <span style="opacity:.55">&#9662;</span></button>';
+    if (isOpen){
+      html += '<div class="pm-detail-dropdown">';
+      options.forEach(function(opt){
+        html += '<button data-action="'+setAction+'" data-'+dataAttrName+'="'+esc(opt.val)+'" class="'+(opt.val===currentVal?"active":"")+'">'+esc(opt.label)+'</button>';
+      });
+      html += '</div>';
+    }
+    html += '</span>';
+    return html;
+  }
+
   function render(){
     var bowler = cb();
     var ballsWithOvers = withOvers(bowler.balls);
@@ -725,13 +753,15 @@ function showPremiumLockedMessage(){
     if (bowlerIds.length>1) html += '<button class="pm-link-btn" data-action="remove-bowler">Remove</button>';
     html += '</div>';
 
-    html += '<div class="pm-roster-block"><div class="pm-roster-title" style="color:var(--text-dim);margin-bottom:4px;">Bowler type — '+bowlTypeLabel(bowler)+'</div>';
-    html += '<div class="pm-bowler-editor-row" style="margin-bottom:4px;gap:2px;"><div class="pm-label" style="margin-bottom:0;font-size:9.5px;">Arm</div><div class="pm-seg" style="width:100%;"><button style="flex:1;padding:5px 8px;min-height:28px;font-size:11px;" data-action="set-bowlarm" data-val="RA" class="'+(bowler.bowlArm==="RA"?"active":"")+'">Right-arm</button><button style="flex:1;padding:5px 8px;min-height:28px;font-size:11px;" data-action="set-bowlarm" data-val="LA" class="'+(bowler.bowlArm==="LA"?"active":"")+'">Left-arm</button></div></div>';
-    html += '<div class="pm-bowler-editor-row" style="margin-bottom:4px;gap:2px;"><div class="pm-label" style="margin-bottom:0;font-size:9.5px;">Type</div><div class="pm-seg" style="width:100%;"><button style="flex:1;padding:5px 8px;min-height:28px;font-size:11px;" data-action="set-bowlpace" data-val="Pace" class="'+(bowler.bowlPace==="Pace"?"active":"")+'">Pace</button><button style="flex:1;padding:5px 8px;min-height:28px;font-size:11px;" data-action="set-bowlpace" data-val="Spin" class="'+(bowler.bowlPace==="Spin"?"active":"")+'">Spin</button></div></div>';
+    html += '<div class="pm-detail-line">';
+    html += detailChip('arm', bowler.bowlArm==="RA"?"RA":"LA", [{val:"RA",label:"Right-arm"},{val:"LA",label:"Left-arm"}], bowler.bowlArm, "set-bowlarm", "val");
+    html += detailChip('pace', bowler.bowlPace, [{val:"Pace",label:"Pace"},{val:"Spin",label:"Spin"}], bowler.bowlPace, "set-bowlpace", "val");
     if (bowler.bowlPace==="Spin"){
-      html += '<div class="pm-bowler-editor-row" style="margin-bottom:4px;gap:2px;"><div class="pm-label" style="margin-bottom:0;font-size:9.5px;">Spin type</div><div class="pm-seg" style="width:100%;"><button style="flex:1;padding:5px 8px;min-height:28px;font-size:11px;" data-action="set-bowlspin" data-val="Off-spin" class="'+(bowler.bowlSpin==="Off-spin"?"active":"")+'">Off-spin</button><button style="flex:1;padding:5px 8px;min-height:28px;font-size:11px;" data-action="set-bowlspin" data-val="Leg-spin" class="'+(bowler.bowlSpin==="Leg-spin"?"active":"")+'">Leg-spin</button></div></div>';
+      html += detailChip('spin', bowler.bowlSpin||"Off-spin", [{val:"Off-spin",label:"Off-spin"},{val:"Leg-spin",label:"Leg-spin"}], bowler.bowlSpin, "set-bowlspin", "val");
     }
-    html += '<div class="pm-bowler-editor-row" style="margin-bottom:0;gap:2px;"><div class="pm-label" style="margin-bottom:0;font-size:9.5px;">Angle</div><div class="pm-seg" style="width:100%;"><button style="flex:1;padding:5px 8px;min-height:28px;font-size:11px;" data-action="set-bowlside" data-val="Over" class="'+(bowler.bowlSide==="Over"?"active":"")+'">Over the wkt</button><button style="flex:1;padding:5px 8px;min-height:28px;font-size:11px;" data-action="set-bowlside" data-val="Around" class="'+(bowler.bowlSide==="Around"?"active":"")+'">Around the wkt</button></div></div>';
+    html += detailChip('angle', bowler.bowlSide==="Over"?"Over wkt":"Around wkt", [{val:"Over",label:"Over the wkt"},{val:"Around",label:"Around the wkt"}], bowler.bowlSide, "set-bowlside", "val");
+    html += detailChip('ballcond', state.conditions.ballCondition||"Ball cond.", [{val:"New",label:"New ball"},{val:"Semi",label:"Semi-new"},{val:"Old",label:"Old ball"}], state.conditions.ballCondition, "set-ballcondition", "val");
+    html += detailChip('hand', "vs "+bowler.hand, [{val:"RHB",label:"vs RHB"},{val:"LHB",label:"vs LHB"}], bowler.hand, "set-hand", "hand");
     html += '</div>';
 
     html += '<div class="pm-mode-tabs">';
@@ -741,7 +771,7 @@ function showPremiumLockedMessage(){
 
     if (state.mode==="combined"){
       html += '<div class="pm-toolbar" style="align-items:center">';
-      html += '<div style="font-size:13px;font-weight:700;color:var(--text)">'+esc(bowler.name)+' ('+bowlTypeText(bowler)+') to a '+bowler.hand+' batter</div>';
+      html += '<div></div>';
       html += '<button class="pm-btn small secondary" data-action="toggle-combined-details">'+(state.combinedDetailsCollapsed?"Show filters &amp; details":"Hide filters &amp; details")+'</button>';
       html += '</div>';
     }
@@ -749,8 +779,6 @@ function showPremiumLockedMessage(){
     if (showFullToolbar){
       html += '<div class="pm-toolbar">';
       html += '<div style="display:flex;gap:8px;flex-wrap:wrap;">';
-      html += '<div class="pm-seg"><button data-action="set-hand" data-hand="RHB" class="'+(bowler.hand==="RHB"?"active":"")+'">RHB</button><button data-action="set-hand" data-hand="LHB" class="'+(bowler.hand==="LHB"?"active":"")+'">LHB</button></div>';
-      html += '<div class="pm-seg"><button data-action="set-ballcondition" data-val="New" class="'+(state.conditions.ballCondition==="New"?"active":"")+'">New</button><button data-action="set-ballcondition" data-val="Semi" class="'+(state.conditions.ballCondition==="Semi"?"active":"")+'">Semi</button><button data-action="set-ballcondition" data-val="Old" class="'+(state.conditions.ballCondition==="Old"?"active":"")+'">Old</button></div>';
       if (state.mode==="pitch"){
         html += '<div class="pm-seg"><button data-action="set-view" data-view="dots" class="'+(state.viewMode==="dots"?"active":"")+'">Dots</button><button data-action="set-view" data-view="heat" class="'+(state.viewMode==="heat"?"active":"")+'">Heat grid</button><button data-action="set-view" data-view="ballpos" class="'+(state.viewMode==="ballpos"?"active":"")+'">By ball #</button></div>';
       }
@@ -805,19 +833,20 @@ function showPremiumLockedMessage(){
       html += '<div class="pm-pitch-wrap" id="combo-wrap">';
       if (pd && pd.stage==="mark-pitch"){
         html += pitchSvgMarkup(bowler, "dots", bowler.balls.filter(passesFilter), null, "pitch-svg2", false);
-        html += '<div class="pm-corner-btn" style="display:flex;gap:6px;">';
-        if (bowler.balls.length>0 && !pd.deliveryType) html += '<button class="pm-btn small secondary" data-action="repeat-last-ball">&#8635; Same as last</button>';
+        html += '<div class="pm-corner-btn" style="display:flex;flex-direction:column;gap:6px;align-items:flex-end;">';
         html += '<button class="pm-btn small secondary" data-action="cancel-delivery">Cancel</button>';
+        if (bowler.balls.length>0 && !pd.deliveryType) html += '<button class="pm-btn small secondary" data-action="repeat-last-ball">&#8635; Same as last</button>';
         html += '</div>';
       } else {
         var pendingShotXY = (pd && pd.wagonX!==null) ? { x:pd.wagonX, y:pd.wagonY } : null;
         html += groundSvgMarkup(bowler, bowler.balls.filter(passesFilter), pendingShotXY, "ground-svg", false);
         if (pd && pd.stage==="awaiting-shot"){
-          html += '<div class="pm-corner-btn"><button class="pm-btn small secondary" data-action="skip-shot">Skip &rarr;</button></div>';
+          html += '<div class="pm-corner-btn" style="display:flex;gap:6px;"><button class="pm-btn small secondary" data-action="go-back">&larr; Back</button><button class="pm-btn small secondary" data-action="skip-shot">Skip &rarr;</button></div>';
         }
         if (pd && pd.stage==="outcome"){
           var pos2 = popoverStyle(pd, 226, 260);
           html += '<div class="pm-popover" style="left:'+pos2.left+'px;top:'+pos2.top+'px;width:216px;">';
+          html += '<button data-action="go-back" style="grid-column:1/-1;padding:5px 8px;font-size:10.5px;font-weight:700;border-radius:6px;border:1px solid var(--card-border);background:var(--card);color:var(--text-dim);cursor:pointer;margin-bottom:6px;width:fit-content;">&larr; Back</button>';
           html += '<div style="grid-column:1/-1;margin-bottom:6px;">';
           var stockOn = pd.deliveryType==="Stock ball";
           html += '<button data-action="set-deliverytype" data-type="Stock ball" style="width:100%;padding:9px 8px;font-size:12px;font-weight:800;border-radius:7px;border:1px solid '+(stockOn?"var(--accent)":"var(--card-border)")+';background:'+(stockOn?"var(--accent)":"var(--card)")+';color:'+(stockOn?"#04140d":"var(--text-dim)")+';cursor:pointer;margin-bottom:6px;">Stock ball</button>';
@@ -836,6 +865,7 @@ function showPremiumLockedMessage(){
         if (pd && pd.stage==="dismissal"){
           var pos3 = popoverStyle(pd, 186, 168);
           html += '<div class="pm-popover" style="left:'+pos3.left+'px;top:'+pos3.top+'px;grid-template-columns:repeat(2,1fr);width:170px;">';
+          html += '<button data-action="go-back" style="grid-column:1/-1;padding:5px 8px;font-size:10.5px;font-weight:700;border-radius:6px;border:1px solid var(--card-border);background:var(--card);color:var(--text-dim);cursor:pointer;margin-bottom:6px;width:fit-content;">&larr; Back</button>';
           DISMISSAL_TYPES.forEach(function(dt){ html += '<button class="pm-outcome-btn" style="background:#ff6b52" data-action="commit-dismissal" data-dismissal="'+dt+'">'+dt+'</button>'; });
           html += '</div>';
         }
@@ -1053,8 +1083,12 @@ function showPremiumLockedMessage(){
       state.showLoad = false; render(); return;
     }
     var el = e.target.closest("[data-action]");
-    if (!el) return;
+    if (!el){
+      if (state.openDetailChip && !e.target.closest(".pm-detail-chip-wrap")){ state.openDetailChip = null; render(); }
+      return;
+    }
     var action = el.getAttribute("data-action");
+    if (state.openDetailChip && action!=="toggle-detail-chip"){ state.openDetailChip = null; }
     if (action==="switch-bowler"){ state.currentBowlerId = el.getAttribute("data-id"); render(); }
     else if (action==="add-bowler"){
       var name = window.prompt("Bowler name? (add several at once separated by commas, e.g. Arjun, Priya, Dev)", "");
@@ -1080,15 +1114,21 @@ function showPremiumLockedMessage(){
       if (state.pendingDelivery){ state.status = "Cancelled the delivery in progress."; state.pendingDelivery = null; setTimeout(function(){ state.status=""; render(); }, 2000); }
       state.mode = el.getAttribute("data-mode"); render();
     }
-    else if (action==="set-hand"){ cb().hand = el.getAttribute("data-hand"); render(); }
-    else if (action==="set-bowlarm"){ cb().bowlArm = el.getAttribute("data-val"); render(); }
+    else if (action==="set-hand"){ cb().hand = el.getAttribute("data-hand"); state.openDetailChip = null; render(); }
+    else if (action==="set-bowlarm"){ cb().bowlArm = el.getAttribute("data-val"); state.openDetailChip = null; render(); }
     else if (action==="set-bowlpace"){
       cb().bowlPace = el.getAttribute("data-val");
       if (cb().bowlPace==="Spin" && !cb().bowlSpin) cb().bowlSpin = "Off-spin";
+      state.openDetailChip = null;
       render();
     }
-    else if (action==="set-bowlspin"){ cb().bowlSpin = el.getAttribute("data-val"); render(); }
-    else if (action==="set-bowlside"){ cb().bowlSide = el.getAttribute("data-val"); render(); }
+    else if (action==="set-bowlspin"){ cb().bowlSpin = el.getAttribute("data-val"); state.openDetailChip = null; render(); }
+    else if (action==="set-bowlside"){ cb().bowlSide = el.getAttribute("data-val"); state.openDetailChip = null; render(); }
+    else if (action==="toggle-detail-chip"){
+      var chipId = el.getAttribute("data-chip");
+      state.openDetailChip = state.openDetailChip===chipId ? null : chipId;
+      render();
+    }
     else if (action==="set-view"){ state.viewMode = el.getAttribute("data-view"); render(); }
     else if (action==="set-over"){ var v = el.getAttribute("data-over"); state.overFilter = v==="all"?"all":Number(v); render(); }
     else if (action==="toggle-combined-details"){ state.combinedDetailsCollapsed = !state.combinedDetailsCollapsed; render(); }
@@ -1135,6 +1175,13 @@ function showPremiumLockedMessage(){
       if (state.pendingDelivery){ state.pendingDelivery.beaten = !state.pendingDelivery.beaten; render(); }
     }
     else if (action==="cancel-delivery"){ state.pendingDelivery = null; render(); }
+    else if (action==="go-back"){
+      if (!state.pendingDelivery) return;
+      var stageOrder = ["mark-pitch","awaiting-shot","outcome","dismissal"];
+      var curIdx = stageOrder.indexOf(state.pendingDelivery.stage);
+      if (curIdx > 0) state.pendingDelivery.stage = stageOrder[curIdx-1];
+      render();
+    }
     else if (action==="skip-shot"){
       if (state.pendingDelivery && state.pendingDelivery.stage==="awaiting-shot"){
         var wrapEl = document.getElementById("combo-wrap");
@@ -1225,6 +1272,7 @@ function showPremiumLockedMessage(){
       // mean later balls quietly stop being tagged at all.
       state.conditions.ballCondition = bcv;
       if (state.pendingDelivery) state.pendingDelivery.ballCondition = state.conditions.ballCondition;
+      state.openDetailChip = null;
       render();
     }
     else if (action==="load-session"){
