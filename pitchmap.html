@@ -1027,6 +1027,26 @@ function showPremiumLockedMessage(){
 
     app.innerHTML = html;
 
+    // Safety net on top of the pre-computed clamping above: after the
+    // real popover is actually in the DOM with real content, measure
+    // its true rendered box and pull it back inside the visible screen
+    // if it overflows. This doesn't depend on the POP_W/POP_H estimates
+    // being accurate, or on window.innerHeight being reliable at the
+    // moment those estimates were computed — it corrects against
+    // reality, whatever that turns out to be.
+    var popoverEl = document.querySelector(".pm-popover");
+    if (popoverEl){
+      var pr = popoverEl.getBoundingClientRect();
+      var margin = 4, vw = window.innerWidth, vh = window.innerHeight;
+      var newLeft = pr.left, newTop = pr.top;
+      if (pr.right > vw-margin) newLeft = pr.left - (pr.right-(vw-margin));
+      if (pr.bottom > vh-margin) newTop = pr.top - (pr.bottom-(vh-margin));
+      if (newLeft < margin) newLeft = margin;
+      if (newTop < margin) newTop = margin;
+      if (newLeft !== pr.left) popoverEl.style.left = newLeft+"px";
+      if (newTop !== pr.top) popoverEl.style.top = newTop+"px";
+    }
+
     var bowlerInput = document.getElementById("input-bowler");
     bowlerInput.addEventListener("input", function(){ cb().name = bowlerInput.value; });
     attachPlayerAutocomplete(["input-bowler"]);

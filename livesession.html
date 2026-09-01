@@ -1023,6 +1023,19 @@ function showPremiumLockedMessage(){
 
     app.innerHTML = html;
 
+    var popoverEl = document.querySelector(".pm-popover");
+    if (popoverEl){
+      var pr = popoverEl.getBoundingClientRect();
+      var margin = 4, vw = window.innerWidth, vh = window.innerHeight;
+      var newLeft = pr.left, newTop = pr.top;
+      if (pr.right > vw-margin) newLeft = pr.left - (pr.right-(vw-margin));
+      if (pr.bottom > vh-margin) newTop = pr.top - (pr.bottom-(vh-margin));
+      if (newLeft < margin) newLeft = margin;
+      if (newTop < margin) newTop = margin;
+      if (newLeft !== pr.left) popoverEl.style.left = newLeft+"px";
+      if (newTop !== pr.top) popoverEl.style.top = newTop+"px";
+    }
+
     var dateInput = document.getElementById("input-date");
     dateInput.addEventListener("input", function(){ state.sessionDate = dateInput.value; state.sessionKey = null; });
 
