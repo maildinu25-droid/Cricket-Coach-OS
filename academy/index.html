@@ -289,6 +289,7 @@
     #print-area .itemCard { background: #f7f7f7 !important; border: 1px solid #ddd; color: #111; }
     #print-area .itemCard .muted, #print-area .entityCard .muted { color: #555 !important; }
     #print-area .entityCard { background: #f7f7f7 !important; border: 1px solid #ddd; color: #111; }
+    #print-area button { display: none !important; }
   }
   @media (max-width: 780px) {
     #main { padding: 18px; }
@@ -453,7 +454,10 @@
 
     <!-- PLAYER 360 PROFILE (opened from Players list or Search — no nav item) -->
     <div class="panel" id="panel-player-profile">
-      <button class="link-btn" id="player-profile-back" style="margin-bottom:12px;">← Back to Players</button>
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+        <button class="link-btn" id="player-profile-back">← Back to Players</button>
+        <button class="btn ghost" id="player-profile-print-btn">🖨 Print full profile</button>
+      </div>
       <div id="player-profile-content"></div>
     </div>
 
@@ -632,7 +636,7 @@
           <div style="flex:1;"><label class="field-label">Deadline</label><input type="date" id="dev-plan-deadline"></div>
         </div>
         <label class="field-label">Related drills (optional)</label>
-        <select id="dev-plan-drills" multiple></select>
+        <select id="dev-plan-drills" multiple size="5"></select>
         <div class="panelToolbar" style="margin-bottom:0;">
           <button class="btn small" id="save-dev-plan-btn">Add plan</button>
           <button class="btn small ghost" id="cancel-dev-plan-btn" style="display:none;">Cancel</button>
@@ -1060,7 +1064,7 @@ const SUPABASE_URL = 'https://tjcrpnwmaadfcvdbthaz.supabase.co';
 // instead of silently staying stale. version.json must be redeployed
 // alongside this file on every future update, with a matching bump to
 // APP_BUILD_VERSION below — these two must always move together.
-const APP_BUILD_VERSION = '2026-09-02-12:35';
+const APP_BUILD_VERSION = '2026-09-02-17:59';
 async function checkForUpdate() {
   try {
     const res = await fetch('./version.json', { cache: 'no-store' });
@@ -1133,6 +1137,7 @@ try {
 let session = null;
 let memberships = [];
 let currentOrgId = null;
+let currentProfilePlayerName = '';
 
 // ============================================================
 // ERROR HANDLING INFRASTRUCTURE
@@ -1202,7 +1207,7 @@ document.addEventListener('click', (e) => {
   btn._lastClick = now;
 }, true);
 
-const cache = { teams: [], players: [], drills: [], tournaments: [], seasons: [], sessions: [], matches: [], assessments: [], assessmentTemplates: [], analysisRecords: [], analysisToolLinks: [], savedReports: [], reflections: [], devPlans: [], feeInvoices: [], branches: [] };
+const cache = { teams: [], players: [], drills: [], equipment: [], tournaments: [], seasons: [], sessions: [], matches: [], assessments: [], assessmentTemplates: [], analysisRecords: [], analysisToolLinks: [], savedReports: [], reflections: [], devPlans: [], feeInvoices: [], branches: [] };
 const editing = {}; // entity -> id currently being edited, or null
 
 function esc(str) { const d = document.createElement('div'); d.textContent = str ?? ''; return d.innerHTML; }
@@ -1547,6 +1552,55 @@ function listRow(mainHtml, tagText, onEdit, onDelete) {
 }
 
 function confirmDelete(label) { return confirm(`Delete ${label}? This can't be undone.`); }
+
+// ---------- Coach text presets: reusable "insert saved text instead of typing" picker ----------
+// Attached per-field via a field_key (e.g. "session_objectives"). Private presets are
+// visible only to their creator; shared ones are visible to every coach in the org —
+// enforced by RLS, not just hidden client-side.
+let presetsCache = null; // { field_key: [{id, label, content, visibility, created_by}, ...] }
+async function loadPresetsCache() {
+  const { data, error } = await supabase.from('text_presets').select('id, field_key, label, content, visibility, created_by').eq('org_id', currentOrgId);
+  if (error) { reportError(error, 'Presets'); presetsCache = {}; return; }
+  presetsCache = {};
+  for (const p of (data || [])) (presetsCache[p.field_key] ||= []).push(p);
+}
+function presetOptionsHtml(fieldKey) {
+  const list = (presetsCache && presetsCache[fieldKey]) || [];
+  return '<option value="">— Insert saved preset —</option>' + list.map(p => `<option value="${esc(p.id)}">${esc(p.label)}${p.visibility === 'shared' ? ' (shared)' : ''}</option>`).join('');
+}
+function presetRowHtml(fieldKey, textareaId) {
+  return `<div class="preset-row full" data-field-key="${esc(fieldKey)}" data-target="${esc(textareaId)}" style="display:flex; gap:8px; align-items:center; margin:4px 0;">
+    <select class="preset-select" style="flex:1; min-width:0; font-size:12px;">${presetOptionsHtml(fieldKey)}</select>
+    <button type="button" class="link-btn save-preset-btn" style="white-space:nowrap;">+ Save preset</button>
+  </div>`;
+}
+function attachPresetHandlers(container) {
+  container.querySelectorAll('.preset-row').forEach(row => {
+    const fieldKey = row.dataset.fieldKey;
+    const textarea = document.getElementById(row.dataset.target);
+    const select = row.querySelector('.preset-select');
+    select.addEventListener('change', () => {
+      if (!select.value || !textarea) return;
+      const preset = (presetsCache[fieldKey] || []).find(p => p.id === select.value);
+      if (preset) textarea.value = preset.content;
+      select.value = '';
+    });
+    row.querySelector('.save-preset-btn').addEventListener('click', async () => {
+      if (!textarea || !textarea.value.trim()) { showToast('Nothing to save — write something first.', 'error'); return; }
+      const label = prompt('Name this preset (e.g. "U14 pre-season warmup"):');
+      if (!label || !label.trim()) return;
+      const shared = confirm('Share this with every coach at the academy?\n\nOK = shared with everyone\nCancel = private, just for you');
+      const { error } = await supabase.from('text_presets').insert({
+        org_id: currentOrgId, created_by: session.user.id, field_key: fieldKey,
+        label: label.trim(), content: textarea.value, visibility: shared ? 'shared' : 'private',
+      });
+      if (error) { showToast(error.message, 'error'); return; }
+      showToast('Preset saved.', 'ok');
+      await loadPresetsCache();
+      select.innerHTML = presetOptionsHtml(fieldKey);
+    });
+  });
+}
 
 const PAGE_SIZE = 20;
 // Client-side "Show more" over an already-fetched array. Deliberately not a
@@ -2561,6 +2615,7 @@ async function openPlayerProfile(playerId) {
 
   const { data: player, error } = await supabase.from('players').select('*').eq('id', playerId).single();
   if (error || !player) { contentEl.innerHTML = '<div class="empty-state">Could not load this player.</div>'; return; }
+  currentProfilePlayerName = player.name || '';
 
   const thirtyDaysAgoP = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
   const [assessmentsRes, matchesRes, sessionsRes, testingRes, devPlansForPlayerRes, attendanceSessionsRes, analysisForPlayerRes, toolStatsForPlayerRes] = await Promise.all([
@@ -2725,6 +2780,11 @@ async function openPlayerProfile(playerId) {
   });
 }
 document.getElementById('player-profile-back').addEventListener('click', () => { showOnlyPanel('panel-players'); loadPlayers(); });
+document.getElementById('player-profile-print-btn').addEventListener('click', async () => {
+  const contentEl = document.getElementById('player-profile-content');
+  if (!contentEl.innerHTML.trim() || contentEl.querySelector('.empty-state')) { showToast('Open a player profile first.', 'error'); return; }
+  await printWithBranding(`Player Profile — ${currentProfilePlayerName || 'Player'}`, contentEl.innerHTML);
+});
 
 // ============================================================
 // TEAMS
@@ -2915,7 +2975,7 @@ function tournamentFormHtml(t) {
       <label class="full">Tournament name<input id="sheet-tournament-name" value="${esc(t?.name || '')}"></label>
       <label>Start date<input type="date" id="sheet-tournament-start" value="${esc(t?.start_date || '')}"></label>
       <label>End date<input type="date" id="sheet-tournament-end" value="${esc(t?.end_date || '')}"></label>
-      <label class="full">Squad<select id="sheet-tournament-squad" multiple>${cache.players.map(p => `<option value="${p.id}" ${(t?.squad_player_ids || []).includes(p.id) ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}</select></label>
+      <label class="full">Squad<select id="sheet-tournament-squad" multiple size="5">${cache.players.map(p => `<option value="${p.id}" ${(t?.squad_player_ids || []).includes(p.id) ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}</select></label>
       <label class="full">Notes<textarea id="sheet-tournament-notes">${esc(t?.notes || '')}</textarea></label>
     </div>
     <button class="btn primary" id="sheet-save-tournament-btn" style="margin-top:14px; width:auto;">${t ? 'Save changes' : 'Add tournament'}</button>`;
@@ -3342,6 +3402,7 @@ document.getElementById('save-drill-btn').addEventListener('click', async () => 
 // ============================================================
 const SESSION_TYPE_LABELS = { team: 'Team', player: '1-on-1', custom: 'Group' };
 const SESSION_FOCUS_OPTIONS = ['Batting', 'Bowling', 'Fielding', 'Wicketkeeping', 'Team', 'Fitness'];
+const OBJECTIVE_CATEGORIES = ['Technical', 'Tactical', 'Physical', 'Mental', 'Teamwork & Communication', 'Match Preparation', 'Specific Skill Development'];
 let sessionQuery = '', sessionTeamFilterVal = '';
 let sessionReflectedIds = new Set();
 
@@ -3377,11 +3438,13 @@ function sessionItemCard(s) {
   const today = new Date().toISOString().slice(0, 10);
   const mainDrills = (s.main_drill_ids || []).map(id => cache.drills.find(d => d.id === id)).filter(Boolean);
   const gameDrills = (s.game_drill_ids || []).map(id => cache.drills.find(d => d.id === id)).filter(Boolean);
+  const equipmentUsed = (s.equipment_ids || []).map(id => cache.equipment.find(e => e.id === id)).filter(Boolean);
   const label = s.title || `${s.date} · ${nameById(cache.teams, s.team_id)}`;
   const showReflectionStatus = s.date <= today;
   const reflected = sessionReflectedIds.has(s.id);
   let tags = `<span class="tagPill">${esc(SESSION_TYPE_LABELS[s.session_type] || '—')}</span>`;
   for (const d of [...mainDrills, ...gameDrills]) tags += `<span class="tagPill">🎯 ${esc(d.name)}</span>`;
+  for (const eq of equipmentUsed) tags += `<span class="tagPill">🎒 ${esc(eq.name)}</span>`;
   if (showReflectionStatus) tags += reflected ? `<span class="tagPill">✓ Reflected</span>` : `<span class="tagPill" style="background:var(--danger-tint); color:var(--danger);">Reflection pending</span>`;
 
   const card = document.createElement('div'); card.className = 'itemCard';
@@ -3422,22 +3485,27 @@ function sessionFormHtml(s) {
     </div>
     <label class="field-label" style="margin-top:10px; display:flex; justify-content:space-between; align-items:center;">Attendance<button type="button" class="btn ghost" id="mark-all-present-btn" style="width:auto; padding:4px 10px; font-size:12px;">Mark All Present</button></label>
     <div id="sheet-session-attendees">${attendanceRowsHtml(teamPlayers, s?.attendance)}</div>
-    <label class="full" style="margin-top:10px; display:block;">Objectives<textarea id="sheet-session-objectives">${esc(s?.objectives || '')}</textarea></label>
-    <label class="full" style="display:block;">Warm-up / Preparation<textarea id="sheet-session-warmup">${esc(s?.warmup || '')}</textarea></label>
-    <label class="full" style="display:block;">Main Skill Block<textarea id="sheet-session-main">${esc(s?.main || '')}</textarea></label>
+    <label class="full" style="margin-top:10px; display:block;">Objective category<select id="sheet-session-objcategory"><option value="">— None —</option>${OBJECTIVE_CATEGORIES.map(c => `<option ${s?.objective_category === c ? 'selected' : ''}>${c}</option>`).join('')}</select></label>
+    <label class="full" style="display:block;">Objectives</label>${presetRowHtml('session_objectives', 'sheet-session-objectives')}<textarea id="sheet-session-objectives">${esc(s?.objectives || '')}</textarea>
+    <label class="full" style="display:block;">Warm-up / Preparation</label>${presetRowHtml('session_warmup', 'sheet-session-warmup')}<textarea id="sheet-session-warmup">${esc(s?.warmup || '')}</textarea>
+    <label class="full" style="display:block;">Main Skill Block</label>${presetRowHtml('session_main', 'sheet-session-main')}<textarea id="sheet-session-main">${esc(s?.main || '')}</textarea>
     <label class="field-label">Main activity drills (optional)</label>
-    <select id="sheet-session-main-drills" multiple>${cache.drills.map(d => `<option value="${d.id}" ${(s?.main_drill_ids || []).includes(d.id) ? 'selected' : ''}>${esc(d.name)}</option>`).join('')}</select>
-    <label class="full" style="display:block; margin-top:10px;">Competitive / Game Block<textarea id="sheet-session-game">${esc(s?.game || '')}</textarea></label>
+    <select id="sheet-session-main-drills" multiple size="5">${cache.drills.map(d => `<option value="${d.id}" ${(s?.main_drill_ids || []).includes(d.id) ? 'selected' : ''}>${esc(d.name)}</option>`).join('')}</select>
+    <label class="full" style="display:block; margin-top:10px;">Competitive / Game Block</label>${presetRowHtml('session_game', 'sheet-session-game')}<textarea id="sheet-session-game">${esc(s?.game || '')}</textarea>
     <label class="field-label">Game drills (optional)</label>
-    <select id="sheet-session-game-drills" multiple>${cache.drills.map(d => `<option value="${d.id}" ${(s?.game_drill_ids || []).includes(d.id) ? 'selected' : ''}>${esc(d.name)}</option>`).join('')}</select>
-    <label class="full" style="display:block; margin-top:10px;">Coaching Cues<textarea id="sheet-session-cues">${esc(s?.cues || '')}</textarea></label>
-    <label class="full" style="display:block;">Success Criteria<textarea id="sheet-session-success">${esc(s?.success || '')}</textarea></label>
+    <select id="sheet-session-game-drills" multiple size="5">${cache.drills.map(d => `<option value="${d.id}" ${(s?.game_drill_ids || []).includes(d.id) ? 'selected' : ''}>${esc(d.name)}</option>`).join('')}</select>
+    <label class="field-label" style="margin-top:10px;">Equipment used (optional) <span class="muted" style="font-weight:400;">— visible to owner/admin</span></label>
+    <select id="sheet-session-equipment" multiple size="5">${cache.equipment.map(eq => `<option value="${eq.id}" ${(s?.equipment_ids || []).includes(eq.id) ? 'selected' : ''}>${esc(eq.name)}</option>`).join('')}</select>
+    <label class="full" style="display:block; margin-top:10px;">Coaching Cues</label>${presetRowHtml('session_cues', 'sheet-session-cues')}<textarea id="sheet-session-cues">${esc(s?.cues || '')}</textarea>
+    <label class="full" style="display:block;">Success Criteria</label>${presetRowHtml('session_success', 'sheet-session-success')}<textarea id="sheet-session-success">${esc(s?.success || '')}</textarea>
     <button class="btn primary" id="sheet-save-session-btn" style="margin-top:14px; width:auto;">${s?.id ? 'Save changes' : 'Save Session'}</button>`;
 }
-function openSessionForm(s) {
+async function openSessionForm(s) {
   if (!cache.teams.length) { showToast('Add a team before creating a session.', 'error'); return; }
   editing.sessions = s?.id || null;
+  await loadPresetsCache();
   openSheet(sessionFormHtml(s));
+  attachPresetHandlers(document);
   document.getElementById('sheet-session-team').addEventListener('change', (e) => {
     const teamPlayers = cache.players.filter(p => p.team_id === e.target.value);
     document.getElementById('sheet-session-attendees').innerHTML = attendanceRowsHtml(teamPlayers, null);
@@ -3460,6 +3528,7 @@ function openSessionForm(s) {
       duration: document.getElementById('sheet-session-duration').value || null,
       venue: document.getElementById('sheet-session-venue').value.trim() || null,
       focus: document.getElementById('sheet-session-focus').value.trim() || null,
+      objective_category: document.getElementById('sheet-session-objcategory').value || null,
       objectives: document.getElementById('sheet-session-objectives').value.trim() || null,
       warmup: document.getElementById('sheet-session-warmup').value.trim() || null,
       main: document.getElementById('sheet-session-main').value.trim() || null,
@@ -3468,6 +3537,7 @@ function openSessionForm(s) {
       success: document.getElementById('sheet-session-success').value.trim() || null,
       main_drill_ids: Array.from(document.getElementById('sheet-session-main-drills').selectedOptions).map(o => o.value),
       game_drill_ids: Array.from(document.getElementById('sheet-session-game-drills').selectedOptions).map(o => o.value),
+      equipment_ids: Array.from(document.getElementById('sheet-session-equipment').selectedOptions).map(o => o.value),
     };
     const { error } = editing.sessions
       ? await supabase.from('sessions').update(row).eq('id', editing.sessions)
@@ -4427,17 +4497,19 @@ function reflectionFormHtml(r) {
       <label class="full">Link to a specific session <span class="muted" style="font-weight:400;">(optional)</span><select id="sheet-reflection-session"><option value="">— No specific session —</option>${recentSessions.map(s => `<option value="${s.id}" ${r?.session_id === s.id ? 'selected' : ''}>${esc(s.date)} · ${esc(s.title || nameById(cache.teams, s.team_id))}</option>`).join('')}</select></label>
       <label>Overall rating (1-10)<input type="number" min="1" max="10" id="sheet-reflection-rating" value="${r?.rating ?? ''}"></label>
       <label>Communication (1-10)<input type="number" min="1" max="10" id="sheet-reflection-communication" value="${r?.communication ?? ''}"></label>
-      <label class="full">What went well?<textarea id="sheet-reflection-well">${esc(r?.well || '')}</textarea></label>
-      <label class="full">What could be better?<textarea id="sheet-reflection-better">${esc(r?.better || '')}</textarea></label>
-      <label class="full">Player notes<textarea id="sheet-reflection-players">${esc(r?.players || '')}</textarea></label>
-      <label class="full">What will I change next time?<textarea id="sheet-reflection-change">${esc(r?.change || '')}</textarea></label>
-      <label class="full">Next focus<textarea id="sheet-reflection-next">${esc(r?.next || '')}</textarea></label>
+      <label class="full" style="display:block;">What went well?</label>${presetRowHtml('reflection_well', 'sheet-reflection-well')}<textarea class="full" id="sheet-reflection-well">${esc(r?.well || '')}</textarea>
+      <label class="full" style="display:block;">What could be better?</label>${presetRowHtml('reflection_better', 'sheet-reflection-better')}<textarea class="full" id="sheet-reflection-better">${esc(r?.better || '')}</textarea>
+      <label class="full" style="display:block;">Player notes</label>${presetRowHtml('reflection_players', 'sheet-reflection-players')}<textarea class="full" id="sheet-reflection-players">${esc(r?.players || '')}</textarea>
+      <label class="full" style="display:block;">What will I change next time?</label>${presetRowHtml('reflection_change', 'sheet-reflection-change')}<textarea class="full" id="sheet-reflection-change">${esc(r?.change || '')}</textarea>
+      <label class="full" style="display:block;">Next focus</label>${presetRowHtml('reflection_next', 'sheet-reflection-next')}<textarea class="full" id="sheet-reflection-next">${esc(r?.next || '')}</textarea>
     </div>
     <button class="btn primary" id="sheet-save-reflection-btn" style="margin-top:14px; width:auto;">${r ? 'Save changes' : 'Save Reflection'}</button>`;
 }
-function openReflectionForm(r) {
+async function openReflectionForm(r) {
   editing.reflections = r ? r.id : null;
+  await loadPresetsCache();
   openSheet(reflectionFormHtml(r));
+  attachPresetHandlers(document);
   document.getElementById('sheet-save-reflection-btn').addEventListener('click', async () => {
     const date = document.getElementById('sheet-reflection-date').value;
     if (!date) { showToast('Date is required.', 'error'); return; }
@@ -4474,7 +4546,7 @@ const FIELD_LABELS = {
   drills: { name: 'Name', category: 'Category', duration: 'Duration', equipment: 'Equipment', diagram_url: 'Diagram/video link', points: 'Coaching points', progressions: 'Progressions', regressions: 'Regressions' },
   tournaments: { name: 'Name', start_date: 'Start date', end_date: 'End date', notes: 'Notes', squad_player_ids: 'Squad' },
   seasons: { name: 'Name', team_id: 'Team', start_date: 'Start date', end_date: 'End date', notes: 'Notes' },
-  sessions: { team_id: 'Team', date: 'Date', time: 'Time', title: 'Title', session_type: 'Type', duration: 'Duration', venue: 'Venue', focus: 'Focus', objectives: 'Objectives', warmup: 'Warm-up', main: 'Main activity', game: 'Game', cues: 'Cues', success: 'Success criteria', attendance: 'Attendance', main_drill_ids: 'Main drills', game_drill_ids: 'Game drills' },
+  sessions: { team_id: 'Team', date: 'Date', time: 'Time', title: 'Title', session_type: 'Type', duration: 'Duration', venue: 'Venue', focus: 'Focus', objectives: 'Objectives', warmup: 'Warm-up', main: 'Main activity', game: 'Game', cues: 'Cues', success: 'Success criteria', attendance: 'Attendance', main_drill_ids: 'Main drills', game_drill_ids: 'Game drills', equipment_ids: 'Equipment used' },
   matches: { team_id: 'Team', tournament_id: 'Tournament', date: 'Date', opponent: 'Opponent', venue: 'Venue', format: 'Format', result: 'Result', toss: 'Toss', toss_decision: 'Toss decision', conditions: 'Conditions', team_rating: 'Team rating', team_batting_rating: 'Team batting rating', team_bowling_rating: 'Team bowling rating', team_fielding_rating: 'Team fielding rating', team_notes: 'Team review', playing_xi: 'Playing XI', batting_review: 'Batting review', bowling_review: 'Bowling review', fielding_review: 'Fielding review', batting_ratings: 'Batting ratings', bowling_ratings: 'Bowling ratings', fielding_ratings: 'Fielding ratings', actions: 'Actions', notes: 'Notes' },
   assessments: { player_id: 'Player', date: 'Date', disciplines: 'Disciplines', ratings: 'Ratings', discipline_notes: 'Discipline notes', priority: 'Priority', comments: 'Comments', media_links: 'Media links' },
   reflections: { session_id: 'Session', date: 'Date', rating: 'Rating', communication: 'Communication', well: 'What went well', better: 'What could be better', players: 'Player notes', change: 'What to change', next: 'Next steps' },
@@ -5531,16 +5603,9 @@ async function runAssessmentReport() {
   }).join('');
 }
 
-document.getElementById('export-report-btn').addEventListener('click', async () => {
-  const outputEl = document.getElementById('report-output');
-  if (!outputEl.innerHTML.trim() || outputEl.querySelector('.empty-state')) {
-    if (!outputEl.querySelector('.list-item') && !outputEl.querySelector('.stats-grid')) {
-      showToast('Generate a report first.', 'error'); return;
-    }
-  }
+async function printWithBranding(title, contentHtml) {
   const { data: org, error: orgErr } = await supabase.from('organizations').select('name, logo_url, brand_color, report_footer').eq('id', currentOrgId).single();
-  if (orgErr) console.error('Report export (branding):', orgErr); // non-fatal — falls back to an unbranded export below
-  const reportLabel = document.getElementById('report-type').selectedOptions[0].textContent;
+  if (orgErr) console.error('Print (branding):', orgErr); // non-fatal — falls back to an unbranded print below
   const brandColor = org?.brand_color || '#10b981';
   const printArea = document.getElementById('print-area');
   printArea.innerHTML = `
@@ -5548,14 +5613,24 @@ document.getElementById('export-report-btn').addEventListener('click', async () 
       ${org?.logo_url ? `<img src="${esc(org.logo_url)}" style="height:48px; object-fit:contain;">` : ''}
       <div>
         <div style="font-size:20px; font-weight:700; color:${brandColor};">${esc(org?.name || '')}</div>
-        <div style="font-size:14px; color:#555;">${esc(reportLabel)}</div>
+        <div style="font-size:14px; color:#555;">${esc(title)}</div>
       </div>
     </div>
     <div style="font-size:12px; color:#777; margin-bottom:16px;">Generated ${new Date().toLocaleString()}</div>
-    <div>${outputEl.innerHTML}</div>
+    <div>${contentHtml}</div>
     ${org?.report_footer ? `<div style="margin-top:24px; padding-top:12px; border-top:1px solid #ddd; font-size:12px; color:#777;">${esc(org.report_footer)}</div>` : ''}
   `;
   window.print();
+}
+document.getElementById('export-report-btn').addEventListener('click', async () => {
+  const outputEl = document.getElementById('report-output');
+  if (!outputEl.innerHTML.trim() || outputEl.querySelector('.empty-state')) {
+    if (!outputEl.querySelector('.list-item') && !outputEl.querySelector('.stats-grid')) {
+      showToast('Generate a report first.', 'error'); return;
+    }
+  }
+  const reportLabel = document.getElementById('report-type').selectedOptions[0].textContent;
+  await printWithBranding(reportLabel, outputEl.innerHTML);
 });
 
 async function runPlayerDevelopmentReport() {
@@ -5577,15 +5652,18 @@ async function runPlayerDevelopmentReport() {
       const values = Object.values(latest.ratings).filter(v => typeof v === 'number');
       if (values.length) avgRating = (values.reduce((a, b) => a + b, 0) / values.length).toFixed(1);
     }
-    return { player: p.name, team: nameById(cache.teams, p.team_id), lastAssessed: latest?.date || null, avgRating, priority: latest?.priority || null, activePlans: plansRes.count ?? 0 };
+    return { id: p.id, player: p.name, team: nameById(cache.teams, p.team_id), lastAssessed: latest?.date || null, avgRating, priority: latest?.priority || null, activePlans: plansRes.count ?? 0 };
   }));
 
   outputEl.innerHTML = rows.map(r => {
     const detail = r.lastAssessed
       ? `Last assessed ${esc(r.lastAssessed)}${r.avgRating ? ' · avg ' + r.avgRating + '/10' : ''}${r.priority ? ' · focus: ' + esc(r.priority) : ''}${r.activePlans ? ' · ' + r.activePlans + ' active plan' + (r.activePlans === 1 ? '' : 's') : ''}`
       : (r.activePlans ? `No assessments yet · ${r.activePlans} active plan${r.activePlans === 1 ? '' : 's'}` : 'No assessments yet');
-    return `<div class="list-item"><span>${esc(r.player)} <span style="color:var(--text-dim); font-size:12px;">· ${esc(r.team)}</span></span><span class="role-tag">${detail}</span></div>`;
+    return `<div class="list-item" data-player-id="${esc(r.id)}" style="cursor:pointer;"><span>${esc(r.player)} <span style="color:var(--text-dim); font-size:12px;">· ${esc(r.team)}</span></span><span class="role-tag">${detail}</span></div>`;
   }).join('');
+  outputEl.querySelectorAll('[data-player-id]').forEach(row => {
+    row.onclick = () => openPlayerProfile(row.dataset.playerId);
+  });
 }
 
 async function runAnalysisSummaryReport() {
@@ -5829,6 +5907,7 @@ async function loadEquipment() {
   listEl.innerHTML = '<div class="empty-state">Loading...</div>';
   const { data, error } = await supabase.from('equipment').select('*').eq('org_id', currentOrgId).order('name');
   if (error) { listEl.innerHTML = `<div class="empty-state">${error.message}</div>`; return; }
+  cache.equipment = data || [];
   if (!data.length) { listEl.innerHTML = '<div class="empty-state">No equipment logged yet.</div>'; return; }
   const branchName = (id) => id ? (cache.branches.find(b => b.id === id)?.name || '') : '';
   renderPagedList(listEl, data, e => listRow(`${esc(e.name)} <span style="color:var(--text-dim); font-size:12px;">· ${esc(e.category || '')}${e.location ? ' · ' + esc(e.location) : ''}${branchName(e.branch_id) ? ' · ' + esc(branchName(e.branch_id)) : ''}</span>`, `Qty ${e.quantity ?? 1} · ${esc(e.condition || '')}`,
