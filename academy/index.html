@@ -1064,7 +1064,7 @@ const SUPABASE_URL = 'https://tjcrpnwmaadfcvdbthaz.supabase.co';
 // instead of silently staying stale. version.json must be redeployed
 // alongside this file on every future update, with a matching bump to
 // APP_BUILD_VERSION below — these two must always move together.
-const APP_BUILD_VERSION = '2026-09-02-17:59';
+const APP_BUILD_VERSION = '2026-09-02-18:12';
 async function checkForUpdate() {
   try {
     const res = await fetch('./version.json', { cache: 'no-store' });
@@ -2610,6 +2610,7 @@ async function openPlayerProfile(playerId) {
   try { localStorage.setItem('academy_current_player_id', playerId); } catch (e) { /* restoration just won't have the specific player after a reload */ }
   const contentEl = document.getElementById('player-profile-content');
   contentEl.innerHTML = '<div class="empty-state">Loading...</div>';
+  currentProfilePlayerName = ''; // cleared immediately so a print click during this fetch can't use the previous player's stale name
   if (!cache.teams.length) await loadTeams();
   if (!cache.branches.length) { const { data: branchData } = await supabase.from('branches').select('*').eq('org_id', currentOrgId).order('name'); cache.branches = branchData || []; }
 
@@ -2782,8 +2783,8 @@ async function openPlayerProfile(playerId) {
 document.getElementById('player-profile-back').addEventListener('click', () => { showOnlyPanel('panel-players'); loadPlayers(); });
 document.getElementById('player-profile-print-btn').addEventListener('click', async () => {
   const contentEl = document.getElementById('player-profile-content');
-  if (!contentEl.innerHTML.trim() || contentEl.querySelector('.empty-state')) { showToast('Open a player profile first.', 'error'); return; }
-  await printWithBranding(`Player Profile — ${currentProfilePlayerName || 'Player'}`, contentEl.innerHTML);
+  if (!currentProfilePlayerName || !contentEl.innerHTML.trim()) { showToast('Open a player profile first.', 'error'); return; }
+  await printWithBranding(`Player Profile — ${currentProfilePlayerName}`, contentEl.innerHTML);
 });
 
 // ============================================================
