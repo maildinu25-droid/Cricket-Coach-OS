@@ -893,6 +893,7 @@
           </optgroup>
           <optgroup label="Resources">
             <option value="equipment-facilities">Equipment &amp; facilities</option>
+            <option value="facility-usage">Facility usage &amp; rotation</option>
             <option value="fees-report">Fees &amp; outstanding balances</option>
           </optgroup>
         </select>
@@ -1064,7 +1065,7 @@ const SUPABASE_URL = 'https://tjcrpnwmaadfcvdbthaz.supabase.co';
 // instead of silently staying stale. version.json must be redeployed
 // alongside this file on every future update, with a matching bump to
 // APP_BUILD_VERSION below — these two must always move together.
-const APP_BUILD_VERSION = '2026-09-03-00:44';
+const APP_BUILD_VERSION = '2026-09-03-04:40';
 async function checkForUpdate() {
   try {
     const res = await fetch('./version.json', { cache: 'no-store' });
@@ -1207,7 +1208,7 @@ document.addEventListener('click', (e) => {
   btn._lastClick = now;
 }, true);
 
-const cache = { teams: [], players: [], drills: [], equipment: [], tournaments: [], seasons: [], sessions: [], matches: [], assessments: [], assessmentTemplates: [], analysisRecords: [], analysisToolLinks: [], savedReports: [], reflections: [], devPlans: [], feeInvoices: [], branches: [] };
+const cache = { teams: [], players: [], drills: [], equipment: [], facilities: [], tournaments: [], seasons: [], sessions: [], matches: [], assessments: [], assessmentTemplates: [], analysisRecords: [], analysisToolLinks: [], savedReports: [], reflections: [], devPlans: [], feeInvoices: [], branches: [] };
 const editing = {}; // entity -> id currently being edited, or null
 
 function esc(str) { const d = document.createElement('div'); d.textContent = str ?? ''; return d.innerHTML; }
@@ -3510,7 +3511,8 @@ function sessionFormHtml(s) {
       <label>Team<select id="sheet-session-team">${cache.teams.map(t => `<option value="${t.id}" ${s?.team_id === t.id ? 'selected' : ''}>${esc(t.name)}</option>`).join('')}</select></label>
       <label>Duration (minutes)<input type="number" id="sheet-session-duration" value="${s?.duration ?? 90}"></label>
       <label>Primary focus<select id="sheet-session-focus">${SESSION_FOCUS_OPTIONS.map(f => `<option ${s?.focus === f ? 'selected' : ''}>${f}</option>`).join('')}</select></label>
-      <label class="full">Venue<input id="sheet-session-venue" value="${esc(s?.venue || '')}"></label>
+      <label class="full">Venue <span class="muted" style="font-weight:400;">(free text — for an opponent's ground, etc.)</span><input id="sheet-session-venue" value="${esc(s?.venue || '')}"></label>
+      <label class="full">Facility used <span class="muted" style="font-weight:400;">(optional — links this session to a tracked net/ground for usage reporting)</span><select id="sheet-session-facility"><option value="">— Not a tracked facility —</option>${cache.facilities.map(f => `<option value="${f.id}" ${s?.facility_id === f.id ? 'selected' : ''}>${esc(f.name)}</option>`).join('')}</select></label>
     </div>
     <label class="field-label" style="margin-top:10px; display:flex; justify-content:space-between; align-items:center;">Attendance<button type="button" class="btn ghost" id="mark-all-present-btn" style="width:auto; padding:4px 10px; font-size:12px;">Mark All Present</button></label>
     <div id="sheet-session-attendees">${attendanceRowsHtml(teamPlayers, s?.attendance)}</div>
@@ -3538,6 +3540,7 @@ async function openSessionForm(s) {
   editing.sessions = s?.id || null;
   if (!cache.drills.length) { const { data } = await supabase.from('drills').select('*').eq('org_id', currentOrgId).order('name'); cache.drills = data || []; }
   if (!cache.equipment.length) { const { data } = await supabase.from('equipment').select('*').eq('org_id', currentOrgId).order('name'); cache.equipment = data || []; }
+  if (!cache.facilities.length) { const { data } = await supabase.from('facilities').select('*').eq('org_id', currentOrgId).order('name'); cache.facilities = data || []; }
   await loadPresetsCache();
   await loadSessionTemplatesCache();
   openSheet(sessionFormHtml(s));
@@ -3609,6 +3612,7 @@ async function openSessionForm(s) {
       time: document.getElementById('sheet-session-time').value.trim() || null,
       duration: document.getElementById('sheet-session-duration').value || null,
       venue: document.getElementById('sheet-session-venue').value.trim() || null,
+      facility_id: document.getElementById('sheet-session-facility').value || null,
       focus: document.getElementById('sheet-session-focus').value.trim() || null,
       objective_category: checkboxMultiSelectValues('sheet-session-objcategory'),
       objectives: document.getElementById('sheet-session-objectives').value.trim() || null,
@@ -5031,7 +5035,7 @@ const REPORT_CONTROLS = {
   'match-results': { daterange: true, team: true }, 'match-report': { match: true },
   'tournament-report': { tournament: true }, 'season-analytics': { season: true },
   'session-report': { daterange: true, team: true }, 'monthly-coaching': { month: true, team: true, coach: true },
-  'coach-development': { daterange: true }, 'equipment-facilities': {}, 'fees-report': {},
+  'coach-development': { daterange: true }, 'equipment-facilities': {}, 'facility-usage': { daterange: true }, 'fees-report': {},
 };
 function updateReportControlVisibility() {
   const cfg = REPORT_CONTROLS[document.getElementById('report-type').value] || {};
@@ -5095,7 +5099,7 @@ document.getElementById('run-report-btn').addEventListener('click', async () => 
     'match-results': runMatchResultsReport, 'match-report': runMatchReport,
     'tournament-report': runTournamentReport, 'season-analytics': runSeasonAnalyticsReport,
     'session-report': runSessionReport, 'monthly-coaching': runMonthlyCoachingReport,
-    'coach-development': runCoachDevelopmentReport, 'equipment-facilities': runEquipmentFacilitiesReport, 'fees-report': runFeesReport,
+    'coach-development': runCoachDevelopmentReport, 'equipment-facilities': runEquipmentFacilitiesReport, 'facility-usage': runFacilityUsageReport, 'fees-report': runFeesReport,
   };
   const fn = runners[document.getElementById('report-type').value];
   if (!fn) return;
@@ -5588,6 +5592,49 @@ async function runEquipmentFacilitiesReport() {
   outputEl.innerHTML = html;
 }
 
+async function runFacilityUsageReport() {
+  const outputEl = document.getElementById('report-output');
+  outputEl.innerHTML = '<div class="empty-state">Generating...</div>';
+  let { from, to } = reportDateRange();
+  if (!from && !to) { from = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10); to = new Date().toISOString().slice(0, 10); }
+
+  const { data: facilities, error: facErr } = await supabase.from('facilities').select('id, name, type').eq('org_id', currentOrgId).order('name');
+  if (facErr) { reportError(facErr, 'Facility usage'); outputEl.innerHTML = '<div class="empty-state">Could not load.</div>'; return; }
+  if (!facilities.length) { outputEl.innerHTML = '<div class="empty-state">No facilities recorded yet — add one under Facilities first.</div>'; return; }
+
+  let sessionsQuery = supabase.from('sessions').select('facility_id, team_id').eq('org_id', currentOrgId).not('facility_id', 'is', null);
+  sessionsQuery = applyDateRange(sessionsQuery, from, to);
+  const { data: sessionRows, error: sesErr } = await sessionsQuery;
+  if (sesErr) reportError(sesErr, 'Facility usage (sessions)');
+
+  const { data: maintRows, error: maintErr } = await supabase.from('facility_maintenance_log').select('facility_id, date').eq('org_id', currentOrgId).order('date', { ascending: false });
+  if (maintErr) reportError(maintErr, 'Facility usage (maintenance)');
+  const lastMaintByFacility = {};
+  for (const m of (maintRows || [])) if (!lastMaintByFacility[m.facility_id]) lastMaintByFacility[m.facility_id] = m.date;
+
+  if (!cache.teams.length) await loadTeams();
+  const usage = facilities.map(f => {
+    const rows = (sessionRows || []).filter(s => s.facility_id === f.id);
+    const byTeam = {};
+    for (const r of rows) { const t = nameById(cache.teams, r.team_id); byTeam[t] = (byTeam[t] || 0) + 1; }
+    return { facility: f, count: rows.length, byTeam, lastMaint: lastMaintByFacility[f.id] || null };
+  }).sort((a, b) => b.count - a.count);
+
+  const rangeLabel = from && to ? `${from} to ${to}` : (from ? `from ${from}` : `up to ${to}`);
+  let html = `<h3>Facility usage — ${esc(rangeLabel)}</h3>`;
+  html += '<div class="note" style="margin-bottom:12px;">Sorted by usage — the biggest gap between the top and bottom entries is where rotation is most uneven.</div>';
+  for (const u of usage) {
+    const teamBreakdown = Object.entries(u.byTeam).sort((a, b) => b[1] - a[1]).map(([team, n]) => `${esc(team)}: ${n}`).join(' · ') || 'No sessions logged against it in this period';
+    html += `<div class="itemCard"><div class="itemMain">
+      <b>${esc(u.facility.name)}</b> <span class="muted">${esc(u.facility.type || '')}</span>
+      <div style="margin-top:4px;"><b>${u.count}</b> session${u.count === 1 ? '' : 's'} this period</div>
+      <small>${teamBreakdown}</small>
+      <small>Last maintenance: ${u.lastMaint ? esc(u.lastMaint) : 'None logged'}</small>
+    </div></div>`;
+  }
+  outputEl.innerHTML = html;
+}
+
 async function runFeesReport() {
   const outputEl = document.getElementById('report-output');
   outputEl.innerHTML = '<div class="empty-state">Generating...</div>';
@@ -6047,12 +6094,62 @@ async function loadFacilities() {
   listEl.innerHTML = '<div class="empty-state">Loading...</div>';
   const { data, error } = await supabase.from('facilities').select('*').eq('org_id', currentOrgId).order('name');
   if (error) { listEl.innerHTML = `<div class="empty-state">${error.message}</div>`; return; }
+  cache.facilities = data || [];
   if (!data.length) { listEl.innerHTML = '<div class="empty-state">No facilities logged yet.</div>'; return; }
   const branchName = (id) => id ? (cache.branches.find(b => b.id === id)?.name || '') : '';
-  renderPagedList(listEl, data, f => listRow(`${esc(f.name)} <span style="color:var(--text-dim); font-size:12px;">· ${esc(f.type || '')}${branchName(f.branch_id) ? ' · ' + esc(branchName(f.branch_id)) : ''}</span>`, f.capacity || '',
-    roleAtLeast('head_coach') ? () => editFacility(f) : null,
-    roleAtLeast('head_coach') ? async () => { if (!confirmDelete(f.name)) return; await supabase.from('facilities').delete().eq('id', f.id); loadFacilities(); } : null
-  ));
+  renderPagedList(listEl, data, f => {
+    const row = listRow(`${esc(f.name)} <span style="color:var(--text-dim); font-size:12px;">· ${esc(f.type || '')}${branchName(f.branch_id) ? ' · ' + esc(branchName(f.branch_id)) : ''}</span>`, f.capacity || '',
+      roleAtLeast('head_coach') ? () => editFacility(f) : null,
+      roleAtLeast('head_coach') ? async () => { if (!confirmDelete(f.name)) return; await supabase.from('facilities').delete().eq('id', f.id); loadFacilities(); } : null
+    );
+    const maintBtn = document.createElement('button');
+    maintBtn.className = 'link-btn';
+    maintBtn.textContent = '🔧 Maintenance log';
+    maintBtn.onclick = () => openFacilityMaintenanceLog(f);
+    const actions = row.querySelector('.actions');
+    actions.insertBefore(maintBtn, actions.firstChild);
+    return row;
+  });
+}
+async function openFacilityMaintenanceLog(f) {
+  const thirtyDaysAgo = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
+  const [logRes, usageRes] = await Promise.all([
+    supabase.from('facility_maintenance_log').select('*').eq('facility_id', f.id).order('date', { ascending: false }),
+    supabase.from('sessions').select('id', { count: 'exact', head: true }).eq('facility_id', f.id).gte('date', thirtyDaysAgo),
+  ]);
+  if (logRes.error) reportError(logRes.error, 'Maintenance log');
+  const entries = logRes.data || [];
+  const loggedByIds = [...new Set(entries.map(e => e.logged_by))];
+  const namesByUser = await profilesByIds(loggedByIds);
+
+  let html = sheetHead(`${f.name} — Maintenance Log`);
+  html += `<div class="stat-card" style="margin-bottom:14px;"><div class="num">${usageRes.count ?? 0}</div><div class="label">Sessions here in the last 30 days</div></div>`;
+  html += `<div class="formgrid"><label class="full">Date<input type="date" id="maint-log-date" value="${new Date().toISOString().slice(0, 10)}"></label>
+    <label class="full">What was done<textarea id="maint-log-note" placeholder="e.g. Net 2 resurfaced, bowling run-up levelled"></textarea></label></div>
+    <button class="btn primary" id="maint-log-save-btn" style="margin-top:10px; width:auto;">Log entry</button>`;
+  html += `<h3 style="margin-top:20px;">History</h3>`;
+  if (!entries.length) html += '<div class="empty-state">No maintenance logged yet for this facility.</div>';
+  else for (const e of entries) html += `<div class="list-item" data-log-id="${esc(e.id)}"><span>${esc(e.note)} <span style="color:var(--text-dim); font-size:12px;">· ${esc(e.date)} · logged by ${esc(namesByUser[e.logged_by] || 'someone')}</span></span><button class="link-btn danger" data-action="delete-maint-log">Delete</button></div>`;
+  openSheet(html);
+
+  document.getElementById('maint-log-save-btn').addEventListener('click', async () => {
+    const note = document.getElementById('maint-log-note').value.trim();
+    if (!note) { showToast('Enter what was done.', 'error'); return; }
+    const { error } = await supabase.from('facility_maintenance_log').insert({
+      org_id: currentOrgId, facility_id: f.id, date: document.getElementById('maint-log-date').value, note, logged_by: session.user.id,
+    });
+    if (error) { showToast(error.message, 'error'); return; }
+    showToast('Logged.', 'ok');
+    openFacilityMaintenanceLog(f);
+  });
+  document.querySelectorAll('[data-action="delete-maint-log"]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      if (!confirm('Delete this maintenance entry?')) return;
+      const logId = btn.closest('[data-log-id]').dataset.logId;
+      await supabase.from('facility_maintenance_log').delete().eq('id', logId);
+      openFacilityMaintenanceLog(f);
+    });
+  });
 }
 function editFacility(f) {
   editing.facilities = f.id;
