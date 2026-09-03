@@ -1064,7 +1064,7 @@ const SUPABASE_URL = 'https://tjcrpnwmaadfcvdbthaz.supabase.co';
 // instead of silently staying stale. version.json must be redeployed
 // alongside this file on every future update, with a matching bump to
 // APP_BUILD_VERSION below — these two must always move together.
-const APP_BUILD_VERSION = '2026-09-02-18:12';
+const APP_BUILD_VERSION = '2026-09-03-00:44';
 async function checkForUpdate() {
   try {
     const res = await fetch('./version.json', { cache: 'no-store' });
@@ -1600,6 +1600,34 @@ function attachPresetHandlers(container) {
       select.innerHTML = presetOptionsHtml(fieldKey);
     });
   });
+}
+
+// ---------- Checkbox-based multi-select: replaces native <select multiple>, which ----------
+// ---------- needs an undiscoverable Ctrl/Cmd-click on desktop but allows plain    ----------
+// ---------- multi-tap on mobile — this behaves identically on both.              ----------
+function checkboxMultiSelectHtml(fieldId, options, selectedValues) {
+  const selectedSet = new Set(selectedValues || []);
+  const rows = options.length
+    ? options.map(o => `<label style="display:flex; align-items:center; gap:8px; padding:7px 8px; cursor:pointer; font-size:13px; font-weight:400;"><input type="checkbox" value="${esc(o.id)}" ${selectedSet.has(o.id) ? 'checked' : ''} style="margin:0; width:16px; height:16px; flex-shrink:0;"><span>${esc(o.label)}</span></label>`).join('')
+    : '<div class="empty-state" style="padding:8px;">None available yet.</div>';
+  return `<div class="checkbox-multiselect" id="${esc(fieldId)}" style="border:1px solid var(--surface-border); border-radius:10px; max-height:170px; overflow-y:auto; padding:2px;">${rows}</div>`;
+}
+function checkboxMultiSelectValues(fieldId) {
+  return Array.from(document.querySelectorAll(`#${fieldId} input[type="checkbox"]:checked`)).map(cb => cb.value);
+}
+
+// ---------- Session templates: whole-form reuse, distinct from per-field text presets ----------
+let sessionTemplatesCache = [];
+async function loadSessionTemplatesCache() {
+  const { data, error } = await supabase.from('session_templates').select('*').eq('org_id', currentOrgId).order('name');
+  if (error) { reportError(error, 'Session templates'); sessionTemplatesCache = []; return; }
+  sessionTemplatesCache = data || [];
+}
+function sessionTemplatePickerHtml() {
+  const options = sessionTemplatesCache.map(t => `<option value="${esc(t.id)}">${esc(t.name)}${t.visibility === 'shared' ? ' (shared)' : ''}</option>`).join('');
+  return `<div style="display:flex; gap:8px; align-items:center; margin-bottom:14px; padding:10px; background:var(--navy-2); border-radius:10px;">
+    <label style="margin:0; flex:1;">Load from template<select id="sheet-session-template-picker"><option value="">— Start from scratch —</option>${options}</select></label>
+  </div>`;
 }
 
 const PAGE_SIZE = 20;
@@ -3473,7 +3501,7 @@ function attendanceRowsHtml(teamPlayers, attendance) {
 }
 function sessionFormHtml(s) {
   const teamPlayers = cache.players.filter(p => p.team_id === (s?.team_id || cache.teams[0]?.id));
-  return sheetHead(s?.id ? 'Edit Session Plan' : 'New Session Plan') + `
+  return sheetHead(s?.id ? 'Edit Session Plan' : 'New Session Plan') + (s?.id ? '' : sessionTemplatePickerHtml()) + `
     <div class="formgrid">
       <label>Date<input type="date" id="sheet-session-date" value="${esc(s?.date || new Date().toISOString().slice(0, 10))}"></label>
       <label>Time<input type="text" id="sheet-session-time" value="${esc(s?.time || '')}" placeholder="e.g. 16:30"></label>
@@ -3486,27 +3514,80 @@ function sessionFormHtml(s) {
     </div>
     <label class="field-label" style="margin-top:10px; display:flex; justify-content:space-between; align-items:center;">Attendance<button type="button" class="btn ghost" id="mark-all-present-btn" style="width:auto; padding:4px 10px; font-size:12px;">Mark All Present</button></label>
     <div id="sheet-session-attendees">${attendanceRowsHtml(teamPlayers, s?.attendance)}</div>
-    <label class="full" style="margin-top:10px; display:block;">Objective category<select id="sheet-session-objcategory"><option value="">— None —</option>${OBJECTIVE_CATEGORIES.map(c => `<option ${s?.objective_category === c ? 'selected' : ''}>${c}</option>`).join('')}</select></label>
+    <label class="full" style="margin-top:10px; display:block;">Objective category <span class="muted" style="font-weight:400;">(select any that apply)</span></label>
+    ${checkboxMultiSelectHtml('sheet-session-objcategory', OBJECTIVE_CATEGORIES.map(c => ({ id: c, label: c })), s?.objective_category)}
     <label class="full" style="display:block;">Objectives</label>${presetRowHtml('session_objectives', 'sheet-session-objectives')}<textarea id="sheet-session-objectives">${esc(s?.objectives || '')}</textarea>
     <label class="full" style="display:block;">Warm-up / Preparation</label>${presetRowHtml('session_warmup', 'sheet-session-warmup')}<textarea id="sheet-session-warmup">${esc(s?.warmup || '')}</textarea>
     <label class="full" style="display:block;">Main Skill Block</label>${presetRowHtml('session_main', 'sheet-session-main')}<textarea id="sheet-session-main">${esc(s?.main || '')}</textarea>
     <label class="field-label">Main activity drills (optional)</label>
-    <select id="sheet-session-main-drills" multiple size="5">${cache.drills.map(d => `<option value="${d.id}" ${(s?.main_drill_ids || []).includes(d.id) ? 'selected' : ''}>${esc(d.name)}</option>`).join('')}</select>
+    ${checkboxMultiSelectHtml('sheet-session-main-drills', cache.drills.map(d => ({ id: d.id, label: d.name })), s?.main_drill_ids)}
     <label class="full" style="display:block; margin-top:10px;">Competitive / Game Block</label>${presetRowHtml('session_game', 'sheet-session-game')}<textarea id="sheet-session-game">${esc(s?.game || '')}</textarea>
     <label class="field-label">Game drills (optional)</label>
-    <select id="sheet-session-game-drills" multiple size="5">${cache.drills.map(d => `<option value="${d.id}" ${(s?.game_drill_ids || []).includes(d.id) ? 'selected' : ''}>${esc(d.name)}</option>`).join('')}</select>
+    ${checkboxMultiSelectHtml('sheet-session-game-drills', cache.drills.map(d => ({ id: d.id, label: d.name })), s?.game_drill_ids)}
     <label class="field-label" style="margin-top:10px;">Equipment used (optional) <span class="muted" style="font-weight:400;">— visible to owner/admin</span></label>
-    <select id="sheet-session-equipment" multiple size="5">${cache.equipment.map(eq => `<option value="${eq.id}" ${(s?.equipment_ids || []).includes(eq.id) ? 'selected' : ''}>${esc(eq.name)}</option>`).join('')}</select>
+    ${checkboxMultiSelectHtml('sheet-session-equipment', cache.equipment.map(eq => ({ id: eq.id, label: eq.name })), s?.equipment_ids)}
     <label class="full" style="display:block; margin-top:10px;">Coaching Cues</label>${presetRowHtml('session_cues', 'sheet-session-cues')}<textarea id="sheet-session-cues">${esc(s?.cues || '')}</textarea>
     <label class="full" style="display:block;">Success Criteria</label>${presetRowHtml('session_success', 'sheet-session-success')}<textarea id="sheet-session-success">${esc(s?.success || '')}</textarea>
-    <button class="btn primary" id="sheet-save-session-btn" style="margin-top:14px; width:auto;">${s?.id ? 'Save changes' : 'Save Session'}</button>`;
+    <div style="display:flex; gap:8px; margin-top:14px;">
+      <button class="btn primary" id="sheet-save-session-btn" style="width:auto;">${s?.id ? 'Save changes' : 'Save Session'}</button>
+      <button type="button" class="btn ghost" id="sheet-save-template-btn" style="width:auto;">Save as template</button>
+    </div>`;
 }
 async function openSessionForm(s) {
   if (!cache.teams.length) { showToast('Add a team before creating a session.', 'error'); return; }
   editing.sessions = s?.id || null;
+  if (!cache.drills.length) { const { data } = await supabase.from('drills').select('*').eq('org_id', currentOrgId).order('name'); cache.drills = data || []; }
+  if (!cache.equipment.length) { const { data } = await supabase.from('equipment').select('*').eq('org_id', currentOrgId).order('name'); cache.equipment = data || []; }
   await loadPresetsCache();
+  await loadSessionTemplatesCache();
   openSheet(sessionFormHtml(s));
   attachPresetHandlers(document);
+  if (!s?.id && document.getElementById('sheet-session-template-picker')) {
+    document.getElementById('sheet-session-template-picker').addEventListener('change', (e) => {
+      const t = sessionTemplatesCache.find(t => t.id === e.target.value);
+      if (!t) return;
+      document.getElementById('sheet-session-type').value = t.session_type || 'team';
+      if (t.focus) document.getElementById('sheet-session-focus').value = t.focus;
+      document.getElementById('sheet-session-objectives').value = t.objectives || '';
+      document.getElementById('sheet-session-warmup').value = t.warmup || '';
+      document.getElementById('sheet-session-main').value = t.main || '';
+      document.getElementById('sheet-session-game').value = t.game || '';
+      document.getElementById('sheet-session-cues').value = t.cues || '';
+      document.getElementById('sheet-session-success').value = t.success || '';
+      const applyChecks = (fieldId, values) => {
+        const set = new Set(values || []);
+        document.querySelectorAll(`#${fieldId} input[type="checkbox"]`).forEach(cb => { cb.checked = set.has(cb.value); });
+      };
+      applyChecks('sheet-session-objcategory', t.objective_category);
+      applyChecks('sheet-session-main-drills', t.main_drill_ids);
+      applyChecks('sheet-session-game-drills', t.game_drill_ids);
+      applyChecks('sheet-session-equipment', t.equipment_ids);
+      showToast(`Loaded "${t.name}".`, 'ok');
+    });
+  }
+  document.getElementById('sheet-save-template-btn').addEventListener('click', async () => {
+    const name = prompt('Name this template (e.g. "U14 Tuesday nets"):');
+    if (!name || !name.trim()) return;
+    const shared = confirm('Share this with every coach at the academy?\n\nOK = shared with everyone\nCancel = private, just for you');
+    const row = {
+      org_id: currentOrgId, created_by: session.user.id, name: name.trim(), visibility: shared ? 'shared' : 'private',
+      session_type: document.getElementById('sheet-session-type').value,
+      focus: document.getElementById('sheet-session-focus').value || null,
+      objective_category: checkboxMultiSelectValues('sheet-session-objcategory'),
+      objectives: document.getElementById('sheet-session-objectives').value.trim() || null,
+      warmup: document.getElementById('sheet-session-warmup').value.trim() || null,
+      main: document.getElementById('sheet-session-main').value.trim() || null,
+      game: document.getElementById('sheet-session-game').value.trim() || null,
+      cues: document.getElementById('sheet-session-cues').value.trim() || null,
+      success: document.getElementById('sheet-session-success').value.trim() || null,
+      main_drill_ids: checkboxMultiSelectValues('sheet-session-main-drills'),
+      game_drill_ids: checkboxMultiSelectValues('sheet-session-game-drills'),
+      equipment_ids: checkboxMultiSelectValues('sheet-session-equipment'),
+    };
+    const { error } = await supabase.from('session_templates').insert(row);
+    if (error) { showToast(error.message, 'error'); return; }
+    showToast('Template saved.', 'ok');
+  });
   document.getElementById('sheet-session-team').addEventListener('change', (e) => {
     const teamPlayers = cache.players.filter(p => p.team_id === e.target.value);
     document.getElementById('sheet-session-attendees').innerHTML = attendanceRowsHtml(teamPlayers, null);
@@ -3529,16 +3610,16 @@ async function openSessionForm(s) {
       duration: document.getElementById('sheet-session-duration').value || null,
       venue: document.getElementById('sheet-session-venue').value.trim() || null,
       focus: document.getElementById('sheet-session-focus').value.trim() || null,
-      objective_category: document.getElementById('sheet-session-objcategory').value || null,
+      objective_category: checkboxMultiSelectValues('sheet-session-objcategory'),
       objectives: document.getElementById('sheet-session-objectives').value.trim() || null,
       warmup: document.getElementById('sheet-session-warmup').value.trim() || null,
       main: document.getElementById('sheet-session-main').value.trim() || null,
       game: document.getElementById('sheet-session-game').value.trim() || null,
       cues: document.getElementById('sheet-session-cues').value.trim() || null,
       success: document.getElementById('sheet-session-success').value.trim() || null,
-      main_drill_ids: Array.from(document.getElementById('sheet-session-main-drills').selectedOptions).map(o => o.value),
-      game_drill_ids: Array.from(document.getElementById('sheet-session-game-drills').selectedOptions).map(o => o.value),
-      equipment_ids: Array.from(document.getElementById('sheet-session-equipment').selectedOptions).map(o => o.value),
+      main_drill_ids: checkboxMultiSelectValues('sheet-session-main-drills'),
+      game_drill_ids: checkboxMultiSelectValues('sheet-session-game-drills'),
+      equipment_ids: checkboxMultiSelectValues('sheet-session-equipment'),
     };
     const { error } = editing.sessions
       ? await supabase.from('sessions').update(row).eq('id', editing.sessions)
