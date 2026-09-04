@@ -998,8 +998,6 @@
       <div id="subscription-plans-list"></div>
       <div class="sectionHeading">Billing History</div>
       <div id="subscription-billing-history"></div>
-      <div class="sectionHeading" id="test-mode-heading" style="display:none;">Test Mode</div>
-      <div id="test-mode-panel" style="display:none;"></div>
     </div>
 
     <!-- PLATFORM ADMIN (ProCoach's own internal operators — completely separate from any org context) -->
@@ -1066,7 +1064,7 @@ const SUPABASE_URL = 'https://tjcrpnwmaadfcvdbthaz.supabase.co';
 // instead of silently staying stale. version.json must be redeployed
 // alongside this file on every future update, with a matching bump to
 // APP_BUILD_VERSION below — these two must always move together.
-const APP_BUILD_VERSION = '2026-09-04-15:11';
+const APP_BUILD_VERSION = '2026-09-04-16:33';
 async function checkForUpdate() {
   try {
     const res = await fetch('./version.json', { cache: 'no-store' });
@@ -6784,41 +6782,6 @@ async function loadSubscription() {
       ? entries.map(e => `<div class="list-item">${e.link ? `<a href="${esc(e.link)}" target="_blank" rel="noopener">${e.label}</a>` : `<span>${e.label}</span>`}<span class="role-tag">${e.amount} · ${new Date(e.date).toLocaleDateString()}</span></div>`).join('')
       : '<div class="empty-state">No billing history yet.</div>';
   }
-
-  // ---------- Test Mode (admin+, real state simulation — never real billing) ----------
-  const testHeadingEl = document.getElementById('test-mode-heading');
-  const testPanelEl = document.getElementById('test-mode-panel');
-  if (roleAtLeast('admin')) {
-    testHeadingEl.style.display = '';
-    testPanelEl.style.display = '';
-    testPanelEl.innerHTML = `
-      <div class="note">These directly change this organization's real subscription row to simulate each state — nothing here talks to Razorpay. Useful for testing without needing live billing.</div>
-      <div class="panelToolbar" style="margin-top:10px;">
-        <button class="btn ghost" data-test-action="trial_expired">Simulate: Trial Expired</button>
-        <button class="btn ghost" data-test-action="payment_failed">Simulate: Payment Failed</button>
-        <button class="btn ghost" data-test-action="grace_period_ended">Simulate: Grace Period Ended</button>
-        <button class="btn ghost" data-test-action="renewal">Simulate: Renewal (Active)</button>
-        <button class="btn ghost" data-test-action="reset_trial">Reset to Fresh Trial</button>
-        <button class="btn ghost" data-test-action="duplicate_webhook">Test: Duplicate Webhook</button>
-      </div>`;
-    const TEST_FUNCTIONS = {
-      trial_expired: 'test_simulate_trial_expired', payment_failed: 'test_simulate_payment_failed',
-      grace_period_ended: 'test_simulate_grace_period_ended', renewal: 'test_simulate_renewal',
-      reset_trial: 'test_reset_to_trial', duplicate_webhook: 'test_simulate_duplicate_webhook',
-    };
-    testPanelEl.querySelectorAll('[data-test-action]').forEach(btn => {
-      btn.onclick = async () => {
-        const fnName = TEST_FUNCTIONS[btn.dataset.testAction];
-        const { data, error } = await supabase.rpc(fnName, { p_org_id: currentOrgId });
-        if (error) { showToast(error.message, 'error'); return; }
-        showToast(typeof data === 'string' ? data : 'Simulated.', 'ok');
-        loadSubscription();
-      };
-    });
-  } else {
-    testHeadingEl.style.display = 'none';
-    testPanelEl.style.display = 'none';
-  }
 }
 
 function enterpriseLeadFormHtml() {
@@ -6990,6 +6953,7 @@ async function loadPlatformAdmin() {
       ${customBits ? `<div class="muted">Custom Enterprise terms: ${esc(customBits)}</div>` : ''}
       ${sub?.custom_notes ? `<div class="muted">Notes: ${esc(sub.custom_notes)}</div>` : ''}
       <button type="button" class="btn ghost" data-grant-enterprise="${o.id}" style="margin-top:8px; width:auto;">${sub?.plan_id === 'enterprise' ? 'Edit Enterprise Terms' : 'Grant Enterprise Access'}</button>
+      <button type="button" class="btn ghost" data-test-mode-org="${o.id}" style="margin-top:8px; width:auto;">Test Mode</button>
     </div>`;
   }).join('');
 
@@ -6998,6 +6962,39 @@ async function loadPlatformAdmin() {
       const org = orgs.find(o => o.id === btn.dataset.grantEnterprise);
       const sub = Array.isArray(org.subscriptions) ? org.subscriptions[0] : org.subscriptions;
       openGrantEnterpriseForm(org, sub);
+    };
+  });
+  document.querySelectorAll('[data-test-mode-org]').forEach(btn => {
+    btn.onclick = () => {
+      const org = orgs.find(o => o.id === btn.dataset.testModeOrg);
+      openTestModeForm(org);
+    };
+  });
+}
+
+function openTestModeForm(org) {
+  openSheet(sheetHead(`Test Mode — ${esc(org.name)}`) + `
+    <div class="note">These directly change this organization's real subscription row to simulate each state — nothing here talks to Razorpay. Useful for testing without needing live billing.</div>
+    <div class="panelToolbar" style="margin-top:10px;">
+      <button class="btn ghost" data-test-action="trial_expired">Simulate: Trial Expired</button>
+      <button class="btn ghost" data-test-action="payment_failed">Simulate: Payment Failed</button>
+      <button class="btn ghost" data-test-action="grace_period_ended">Simulate: Grace Period Ended</button>
+      <button class="btn ghost" data-test-action="renewal">Simulate: Renewal (Active)</button>
+      <button class="btn ghost" data-test-action="reset_trial">Reset to Fresh Trial</button>
+      <button class="btn ghost" data-test-action="duplicate_webhook">Test: Duplicate Webhook</button>
+    </div>`);
+  const TEST_FUNCTIONS = {
+    trial_expired: 'test_simulate_trial_expired', payment_failed: 'test_simulate_payment_failed',
+    grace_period_ended: 'test_simulate_grace_period_ended', renewal: 'test_simulate_renewal',
+    reset_trial: 'test_reset_to_trial', duplicate_webhook: 'test_simulate_duplicate_webhook',
+  };
+  document.querySelectorAll('[data-test-action]').forEach(btn => {
+    btn.onclick = async () => {
+      const fnName = TEST_FUNCTIONS[btn.dataset.testAction];
+      const { data, error } = await supabase.rpc(fnName, { p_org_id: org.id });
+      if (error) { showToast(error.message, 'error'); return; }
+      showToast(typeof data === 'string' ? data : 'Simulated.', 'ok');
+      loadPlatformAdmin();
     };
   });
 }
