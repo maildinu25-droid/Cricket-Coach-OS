@@ -1066,7 +1066,7 @@ const SUPABASE_URL = 'https://tjcrpnwmaadfcvdbthaz.supabase.co';
 // instead of silently staying stale. version.json must be redeployed
 // alongside this file on every future update, with a matching bump to
 // APP_BUILD_VERSION below — these two must always move together.
-const APP_BUILD_VERSION = '2026-09-04-11:09';
+const APP_BUILD_VERSION = '2026-09-04-15:11';
 async function checkForUpdate() {
   try {
     const res = await fetch('./version.json', { cache: 'no-store' });
@@ -3371,32 +3371,118 @@ function openPlayerForm(p) {
 }
 document.getElementById('add-player-btn').addEventListener('click', () => openPlayerForm(null));
 
+let bulkImportParsedRows = null;
+function loadXLSXLibrary() {
+  return new Promise((resolve, reject) => {
+    if (window.XLSX) { resolve(); return; }
+    const script = document.createElement('script');
+    script.src = 'https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js';
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error('Could not load the file-reading library — check your connection and try again.'));
+    document.head.appendChild(script);
+  });
+}
+function detectColumn(row, candidates) {
+  const keys = Object.keys(row);
+  for (const candidate of candidates) {
+    const found = keys.find(k => k.trim().toLowerCase() === candidate);
+    if (found) return found;
+  }
+  return null;
+}
 function bulkAddPlayersFormHtml() {
   return sheetHead('Bulk Add Players') + `
     <div class="formgrid">
       <label class="full">Team<select id="bulk-players-team">${cache.teams.map(t => `<option value="${t.id}">${esc(t.name)}</option>`).join('')}</select></label>
       <label class="full">One player per line — optionally add a role after a comma
-        <textarea id="bulk-players-list" rows="10" placeholder="Arjun Mehta, Batter
+        <textarea id="bulk-players-list" rows="8" placeholder="Arjun Mehta, Batter
 Kabir Shah, Bowler
 Vihaan Nair"></textarea>
       </label>
     </div>
+    <div class="sectionHeading">— OR —</div>
+    <label class="field-label">Upload a CSV or Excel file <span class="muted" style="font-weight:400;">(needs a "Name" column — Role, Age, Date of birth are picked up automatically if present)</span></label>
+    <input type="file" id="bulk-players-file" accept=".csv,.xlsx,.xls" style="width:auto;">
+    <div class="status-msg" id="bulk-players-file-status"></div>
+    <div id="bulk-players-preview"></div>
     <div class="status-msg" id="bulk-players-status"></div>
     <button class="btn primary" id="bulk-players-save-btn" style="margin-top:10px; width:auto;">Add players</button>`;
 }
+function formatDobFromSheet(val) {
+  if (!val) return null;
+  if (val instanceof Date && !isNaN(val)) return val.toISOString().slice(0, 10);
+  const str = String(val).trim();
+  // DD/MM/YYYY or DD-MM-YYYY — checked first since this app's userbase is primarily Indian,
+  // where this is the standard convention. JS's native Date parsing assumes US-style MM/DD/YYYY
+  // by default, which silently rejects (or worse, misreads) dates like "14/05/2012".
+  const ddmmyyyy = str.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+  if (ddmmyyyy) {
+    const day = Number(ddmmyyyy[1]), month = Number(ddmmyyyy[2]), year = Number(ddmmyyyy[3]);
+    if (month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+      return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    }
+  }
+  const asDate = new Date(str);
+  if (!isNaN(asDate)) return asDate.toISOString().slice(0, 10);
+  return null;
+}
 function openBulkAddPlayersForm() {
   if (!cache.teams.length) { showToast('Add a team first.', 'error'); return; }
+  bulkImportParsedRows = null;
   openSheet(bulkAddPlayersFormHtml());
+
+  document.getElementById('bulk-players-file').addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const fileStatusEl = document.getElementById('bulk-players-file-status');
+    const previewEl = document.getElementById('bulk-players-preview');
+    fileStatusEl.textContent = 'Reading file...'; fileStatusEl.className = 'status-msg';
+    previewEl.innerHTML = '';
+    bulkImportParsedRows = null;
+    try {
+      await loadXLSXLibrary();
+      const buffer = await file.arrayBuffer();
+      const workbook = XLSX.read(buffer, { type: 'array', cellDates: true });
+      const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+      const rawRows = XLSX.utils.sheet_to_json(firstSheet, { defval: '' });
+      if (!rawRows.length) { fileStatusEl.textContent = 'No rows found in that file.'; fileStatusEl.className = 'status-msg error'; return; }
+      const nameKey = detectColumn(rawRows[0], ['name', 'player name', 'full name', 'player']);
+      if (!nameKey) { fileStatusEl.textContent = 'Could not find a Name column — check the file has a header row with a "Name" column.'; fileStatusEl.className = 'status-msg error'; return; }
+      const roleKey = detectColumn(rawRows[0], ['role', 'position']);
+      const ageKey = detectColumn(rawRows[0], ['age']);
+      const dobKey = detectColumn(rawRows[0], ['date of birth', 'dob', 'birth date']);
+      const parsed = rawRows.map(r => ({
+        name: String(r[nameKey] || '').trim(),
+        role: roleKey ? (String(r[roleKey] || '').trim() || null) : null,
+        age: ageKey && r[ageKey] !== '' ? (Number(r[ageKey]) || null) : null,
+        date_of_birth: dobKey ? formatDobFromSheet(r[dobKey]) : null,
+      })).filter(r => r.name);
+      if (!parsed.length) { fileStatusEl.textContent = 'No valid player names found in that file.'; fileStatusEl.className = 'status-msg error'; return; }
+      bulkImportParsedRows = parsed;
+      fileStatusEl.textContent = `Found ${parsed.length} player${parsed.length === 1 ? '' : 's'} — will be used instead of the text list below.`; fileStatusEl.className = 'status-msg ok';
+      const previewRows = parsed.slice(0, 50);
+      previewEl.innerHTML = '<div class="sectionHeading">Preview' + (parsed.length > 50 ? ` (first 50 of ${parsed.length})` : '') + '</div>' +
+        previewRows.map(r => `<div class="list-item"><span>${esc(r.name)}</span><span class="role-tag">${esc(r.role || '—')}${r.age ? ' · ' + r.age : ''}</span></div>`).join('');
+    } catch (err) {
+      fileStatusEl.textContent = err.message || 'Could not read that file.'; fileStatusEl.className = 'status-msg error';
+    }
+  });
+
   document.getElementById('bulk-players-save-btn').addEventListener('click', async () => {
     const teamId = document.getElementById('bulk-players-team').value;
-    const lines = document.getElementById('bulk-players-list').value.split('\n').map(l => l.trim()).filter(Boolean);
-    if (!lines.length) { showToast('Enter at least one player.', 'error'); return; }
-    const rows = lines.map(line => {
-      const commaIdx = line.indexOf(',');
-      const name = (commaIdx === -1 ? line : line.slice(0, commaIdx)).trim();
-      const role = commaIdx === -1 ? null : line.slice(commaIdx + 1).trim() || null;
-      return { org_id: currentOrgId, team_id: teamId, name, role };
-    }).filter(r => r.name);
+    let rows;
+    if (bulkImportParsedRows && bulkImportParsedRows.length) {
+      rows = bulkImportParsedRows.map(r => ({ org_id: currentOrgId, team_id: teamId, name: r.name, role: r.role, age: r.age, date_of_birth: r.date_of_birth }));
+    } else {
+      const lines = document.getElementById('bulk-players-list').value.split('\n').map(l => l.trim()).filter(Boolean);
+      if (!lines.length) { showToast('Enter at least one player, or upload a file.', 'error'); return; }
+      rows = lines.map(line => {
+        const commaIdx = line.indexOf(',');
+        const name = (commaIdx === -1 ? line : line.slice(0, commaIdx)).trim();
+        const role = commaIdx === -1 ? null : (line.slice(commaIdx + 1).trim() || null);
+        return { org_id: currentOrgId, team_id: teamId, name, role };
+      }).filter(r => r.name);
+    }
     if (!rows.length) { showToast('No valid player names found.', 'error'); return; }
     const statusEl = document.getElementById('bulk-players-status');
     statusEl.textContent = `Adding ${rows.length} player${rows.length === 1 ? '' : 's'}...`; statusEl.className = 'status-msg';
