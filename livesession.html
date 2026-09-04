@@ -288,7 +288,7 @@ function showPremiumLockedMessage(){
   function clamp(n,lo,hi){ return Math.max(lo, Math.min(hi, n)); }
   function uid(){ return Math.random().toString(36).slice(2,10); }
   function freshPendingDelivery(){
-    return { xPct:null, yPct:null, wagonX:null, wagonY:null, shotType:null, dismissal:null, ballCondition:state.conditions.ballCondition||"", stage:"mark-pitch" };
+    return { xPct:null, yPct:null, wagonX:null, wagonY:null, shotType:null, footwork:null, dismissal:null, ballCondition:state.conditions.ballCondition||"", stage:"mark-pitch" };
   }
   function hasWagon(b){ return b.wagonX!==null && b.wagonX!==undefined; }
   function esc(s){ return String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;"); }
@@ -823,6 +823,12 @@ function showPremiumLockedMessage(){
           var posS = popoverStyle(pd, 190, 300);
           html += '<div class="pm-popover" style="left:'+posS.left+'px;top:'+posS.top+'px;grid-template-columns:repeat(2,1fr);width:186px;">';
           html += '<button data-action="go-back" style="grid-column:1/-1;padding:5px 8px;font-size:10.5px;font-weight:700;border-radius:6px;border:1px solid var(--card-border);background:var(--card);color:var(--text-dim);cursor:pointer;width:fit-content;">&larr; Back</button>';
+          html += '<div style="grid-column:1/-1;display:flex;gap:3px;">';
+          [["Front-foot","FF"],["Back-foot","BF"],["Step down","Step"],["No movement","—"]].forEach(function(fw){
+            var on = pd.footwork===fw[0];
+            html += '<button data-action="set-footwork" data-footwork="'+fw[0]+'" style="flex:1;padding:6px 2px;font-size:9.5px;font-weight:700;border-radius:6px;border:1px solid '+(on?"var(--accent)":"var(--card-border)")+';background:'+(on?"var(--accent)":"var(--card)")+';color:'+(on?"#04140d":"var(--text-dim)")+';cursor:pointer;">'+fw[1]+'</button>';
+          });
+          html += '</div>';
           SHOT_TYPES.forEach(function(s){ html += '<button class="pm-outcome-btn" style="background:#e0ab2c" data-action="commit-shottype" data-shottype="'+s+'">'+s+'</button>'; });
           html += '<button class="pm-outcome-btn" style="background:var(--card);color:var(--text);border:1px solid var(--card-border);" data-action="skip-shottype">Skip</button>';
           html += '</div>';
@@ -928,6 +934,13 @@ function showPremiumLockedMessage(){
     html += outcomeColumnsTable(["New","Semi","Old"].map(function(bc){ return { label:bc, balls: visible.filter(function(b){return b.ballCondition===bc;}) }; }).filter(function(r){return r.balls.length>0;}));
     html += '<div class="pm-seam"></div><div class="pm-panel-title" style="font-size:12.5px">By ball in over</div>';
     html += outcomeColumnsTable([1,2,3,4,5,6].map(function(n){ return { label:"Ball "+n, balls: visible.filter(function(b){return b.ballNo===n;}) }; }).filter(function(r){return r.balls.length>0;}));
+    html += '<div class="pm-seam"></div><div class="pm-panel-title" style="font-size:12.5px">Footwork</div>';
+    html += outcomeColumnsTable([
+      { label:"Front-foot", balls: visible.filter(function(b){return b.footwork==="Front-foot";}) },
+      { label:"Back-foot", balls: visible.filter(function(b){return b.footwork==="Back-foot";}) },
+      { label:"Step down", balls: visible.filter(function(b){return b.footwork==="Step down";}) },
+      { label:"No movement", balls: visible.filter(function(b){return b.footwork==="No movement";}) },
+    ].filter(function(r){return r.balls.length>0;}));
     html += '</div>';
 
     html += '<div class="pm-panel"><div class="pm-panel-title">Dismissals <span class="dim">'+dismissals.length+'</span></div>';
@@ -1156,7 +1169,7 @@ function showPremiumLockedMessage(){
   function commitFullDelivery(pd, outcomeId, dismissalType){
     var bowler = curBowler(), batter = curBatter();
     state.deliveries.push({
-      id: uid(), xPct:pd.xPct, yPct:pd.yPct, wagonX:pd.wagonX, wagonY:pd.wagonY, shotType:pd.shotType, outcome:outcomeId, dismissal:dismissalType||null, ballCondition:pd.ballCondition||"",
+      id: uid(), xPct:pd.xPct, yPct:pd.yPct, wagonX:pd.wagonX, wagonY:pd.wagonY, shotType:pd.shotType, footwork:pd.footwork||null, outcome:outcomeId, dismissal:dismissalType||null, ballCondition:pd.ballCondition||"",
       bowlerId: state.currentBowlerId, bowlerName: bowler?bowler.name:"Unknown", bowlArm: bowler?bowler.bowlArm:"RA", bowlPace: bowler?bowler.bowlPace:"Pace", bowlSpin: bowler?bowler.bowlSpin:null, bowlSide: bowler?bowler.bowlSide:"Over",
       batterId: state.currentBatterId, batterName: batter?batter.name:"Unknown", batterHand: batter?batter.hand:"RHB",
       format: state.format, phase: state.currentPhase,
@@ -1184,6 +1197,9 @@ function showPremiumLockedMessage(){
       var chipId = el.getAttribute("data-chip");
       state.openDetailChip = state.openDetailChip===chipId ? null : chipId;
       render();
+    }
+    else if (action==="set-footwork"){
+      if (state.pendingDelivery){ state.pendingDelivery.footwork = state.pendingDelivery.footwork===el.getAttribute("data-footwork") ? null : el.getAttribute("data-footwork"); render(); }
     }
     else if (action==="add-batter"){
       state.batterAdderDraft = "";
@@ -1337,7 +1353,7 @@ function showPremiumLockedMessage(){
       if (!curBowler() || !curBatter()){ state.status = "Pick a bowler and a batter first."; render(); setTimeout(function(){ state.status=""; render(); }, 2000); return; }
       var pairBalls = state.deliveries.filter(function(d){return d.bowlerId===state.currentBowlerId && d.batterId===state.currentBatterId;});
       var lastBall = pairBalls[pairBalls.length-1];
-      state.pendingDelivery = { xPct:null, yPct:null, wagonX:null, wagonY:null, shotType:lastBall?lastBall.shotType:null, dismissal:null, ballCondition:state.conditions.ballCondition||"", stage:"mark-pitch", repeatingContext:true };
+      state.pendingDelivery = { xPct:null, yPct:null, wagonX:null, wagonY:null, shotType:lastBall?lastBall.shotType:null, footwork:null, dismissal:null, ballCondition:state.conditions.ballCondition||"", stage:"mark-pitch", repeatingContext:true };
       render();
     }
     else if (action==="cancel-delivery"){ state.pendingDelivery = null; render(); }
@@ -1583,6 +1599,13 @@ function showPremiumLockedMessage(){
         var batBallsWithOversAT = withOvers(bballs);
         html += '<div class="pr-section-title">By ball in over</div>';
         html += printOutcomeColumnsTable([1,2,3,4,5,6].map(function(n){ return { label:"Ball "+n, balls: batBallsWithOversAT.filter(function(d){return d.ballNo===n;}) }; }).filter(function(r){return r.balls.length>0;}));
+        html += '<div class="pr-section-title">Footwork</div>';
+        html += printOutcomeColumnsTable([
+          { label:"Front-foot", balls: bballs.filter(function(d){return d.footwork==="Front-foot";}) },
+          { label:"Back-foot", balls: bballs.filter(function(d){return d.footwork==="Back-foot";}) },
+          { label:"Step down", balls: bballs.filter(function(d){return d.footwork==="Step down";}) },
+          { label:"No movement", balls: bballs.filter(function(d){return d.footwork==="No movement";}) },
+        ].filter(function(r){return r.balls.length>0;}));
         html += '<table class="pr-table"><tr><th>Bowler</th><th>Outcome</th><th>Length</th><th>Line</th></tr>';
         bballs.forEach(function(d){
           var o = outcomeMap[d.outcome], lz = lengthZoneFor(d.yPct), ln = lineLabel(d.xPct, bb.hand);
@@ -1672,6 +1695,13 @@ function showPremiumLockedMessage(){
       var batBallsWithOversP = withOvers(balls);
       html += '<div class="pr-section-title">By ball in over</div>';
       html += printOutcomeColumnsTable([1,2,3,4,5,6].map(function(n){ return { label:"Ball "+n, balls: batBallsWithOversP.filter(function(d){return d.ballNo===n;}) }; }).filter(function(r){return r.balls.length>0;}));
+      html += '<div class="pr-section-title">Footwork</div>';
+      html += printOutcomeColumnsTable([
+        { label:"Front-foot", balls: balls.filter(function(d){return d.footwork==="Front-foot";}) },
+        { label:"Back-foot", balls: balls.filter(function(d){return d.footwork==="Back-foot";}) },
+        { label:"Step down", balls: balls.filter(function(d){return d.footwork==="Step down";}) },
+        { label:"No movement", balls: balls.filter(function(d){return d.footwork==="No movement";}) },
+      ].filter(function(r){return r.balls.length>0;}));
       html += '<table class="pr-table"><tr><th>Ball</th><th>Bowler</th><th>Outcome</th><th>Shot</th><th>Length</th><th>Line</th><th>Phase</th></tr>';
       withOvers(balls).forEach(function(d){
         var o = outcomeMap[d.outcome], lz = lengthZoneFor(d.yPct), ln = lineLabel(d.xPct, b.hand);
