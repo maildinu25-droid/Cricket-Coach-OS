@@ -833,7 +833,7 @@ function showPremiumLockedMessage(){
         html += '<div class="pm-popover" style="left:'+posS.left+'px;top:'+posS.top+'px;grid-template-columns:repeat(2,1fr);width:186px;">';
         html += '<button data-action="go-back" style="grid-column:1/-1;padding:5px 8px;font-size:10.5px;font-weight:700;border-radius:6px;border:1px solid var(--card-border);background:var(--card);color:var(--text-dim);cursor:pointer;width:fit-content;">&larr; Back</button>';
         html += '<div style="grid-column:1/-1;display:flex;gap:3px;">';
-        [["Front-foot","FF"],["Back-foot","BF"],["No movement","—"]].forEach(function(fw){
+        [["Front-foot","FF"],["Back-foot","BF"],["Step down","Step"],["No movement","—"]].forEach(function(fw){
           var on = pd.footwork===fw[0];
           html += '<button data-action="set-footwork" data-footwork="'+fw[0]+'" style="flex:1;padding:6px 2px;font-size:9.5px;font-weight:700;border-radius:6px;border:1px solid '+(on?"var(--accent)":"var(--card-border)")+';background:'+(on?"var(--accent)":"var(--card)")+';color:'+(on?"#04140d":"var(--text-dim)")+';cursor:pointer;">'+fw[1]+'</button>';
         });
@@ -898,6 +898,7 @@ function showPremiumLockedMessage(){
     html += outcomeColumnsTable([
       { label:"Front-foot", balls: visibleBalls.filter(function(b){return b.footwork==="Front-foot";}) },
       { label:"Back-foot", balls: visibleBalls.filter(function(b){return b.footwork==="Back-foot";}) },
+      { label:"Step down", balls: visibleBalls.filter(function(b){return b.footwork==="Step down";}) },
       { label:"No movement", balls: visibleBalls.filter(function(b){return b.footwork==="No movement";}) },
     ].filter(function(r){return r.balls.length>0;}));
     html += '<div class="pm-seam"></div><div class="pm-panel-title" style="font-size:12.5px">Bowling type faced</div>';
@@ -1670,6 +1671,7 @@ function showPremiumLockedMessage(){
       html += printOutcomeColumnsTable([
         { label:"Front-foot", balls: b.balls.filter(function(ball){return ball.footwork==="Front-foot";}) },
         { label:"Back-foot", balls: b.balls.filter(function(ball){return ball.footwork==="Back-foot";}) },
+        { label:"Step down", balls: b.balls.filter(function(ball){return ball.footwork==="Step down";}) },
         { label:"No movement", balls: b.balls.filter(function(ball){return ball.footwork==="No movement";}) },
       ].filter(function(r){return r.balls.length>0;}));
       html += '<div class="pr-section-title">Shot type</div>';
@@ -1740,6 +1742,7 @@ function showPremiumLockedMessage(){
       html += printOutcomeColumnsTable([
         { label:"Front-foot", balls: b.balls.filter(function(ball){return ball.footwork==="Front-foot";}) },
         { label:"Back-foot", balls: b.balls.filter(function(ball){return ball.footwork==="Back-foot";}) },
+        { label:"Step down", balls: b.balls.filter(function(ball){return ball.footwork==="Step down";}) },
         { label:"No movement", balls: b.balls.filter(function(ball){return ball.footwork==="No movement";}) },
       ].filter(function(r){return r.balls.length>0;}));
 
