@@ -1065,7 +1065,7 @@ const SUPABASE_URL = 'https://tjcrpnwmaadfcvdbthaz.supabase.co';
 // instead of silently staying stale. version.json must be redeployed
 // alongside this file on every future update, with a matching bump to
 // APP_BUILD_VERSION below — these two must always move together.
-const APP_BUILD_VERSION = '2026-09-03-04:40';
+const APP_BUILD_VERSION = '2026-09-03-16:46';
 async function checkForUpdate() {
   try {
     const res = await fetch('./version.json', { cache: 'no-store' });
@@ -4821,12 +4821,12 @@ async function loadSmartAlerts() {
 async function fetchMyPortalPlayers() {
   const role = currentRole();
   if (role === 'player') {
-    const { data, error } = await supabase.from('players').select('*, teams(name, branches(name))').eq('linked_user_id', session.user.id).eq('org_id', currentOrgId);
+    const { data, error } = await supabase.from('players').select('*, teams!players_team_id_fkey(name, branches(name))').eq('linked_user_id', session.user.id).eq('org_id', currentOrgId);
     if (error) { reportError(error, 'My Portal'); return []; }
     return data || [];
   }
   if (role === 'parent') {
-    const { data, error } = await supabase.from('player_guardians').select('players(*, teams(name, branches(name)))').eq('user_id', session.user.id).eq('org_id', currentOrgId);
+    const { data, error } = await supabase.from('player_guardians').select('players(*, teams!players_team_id_fkey(name, branches(name)))').eq('user_id', session.user.id).eq('org_id', currentOrgId);
     if (error) { reportError(error, 'My Portal'); return []; }
     return (data || []).map(d => d.players).filter(Boolean);
   }
@@ -4853,11 +4853,13 @@ async function renderMyDashboardFor(player) {
   contentEl.innerHTML = '<div class="empty-state">Loading...</div>';
   const today = new Date().toISOString().slice(0, 10);
   const sevenOut = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
-  const [sessionsRes, matchesRes, assessRes, devRes] = await Promise.all([
+  const [sessionsRes, matchesRes, assessRes, devRes, pastSessionsRes, pastMatchesRes] = await Promise.all([
     supabase.from('sessions').select('date, title, session_type').eq('team_id', player.team_id).gte('date', today).lte('date', sevenOut).order('date'),
     supabase.from('matches').select('date, opponent').eq('team_id', player.team_id).gte('date', today).lte('date', sevenOut).order('date'),
     supabase.from('assessments').select('date, ratings').eq('player_id', player.id).order('date', { ascending: false }).limit(1),
     supabase.from('development_plans').select('goal, deadline, status').eq('player_id', player.id).eq('status', 'active'),
+    supabase.from('sessions').select('date, title, session_type, attendance').eq('team_id', player.team_id).lt('date', today).order('date', { ascending: false }).limit(15),
+    supabase.from('matches').select('date, opponent, result, playing_xi, batting_review, bowling_review, batting_ratings, bowling_ratings').eq('team_id', player.team_id).lt('date', today).order('date', { ascending: false }).limit(10),
   ]);
   const upcoming = [
     ...(sessionsRes.data || []).map(s => ({ date: s.date, label: `${s.title || SESSION_TYPE_LABELS[s.session_type] || 'Session'}` })),
@@ -4866,6 +4868,12 @@ async function renderMyDashboardFor(player) {
   const latestAssess = (assessRes.data || [])[0];
   const avgRating = latestAssess ? assessmentAvg(latestAssess) : null;
 
+  const pastSessions = pastSessionsRes.data || [];
+  const attendedCount = pastSessions.filter(s => s.attendance && s.attendance[player.id] === 'present').length;
+  const attendanceRate = pastSessions.length ? Math.round(attendedCount / pastSessions.length * 100) : null;
+
+  const pastMatchesPlayed = (pastMatchesRes.data || []).filter(m => (m.playing_xi || []).includes(player.id));
+
   let html = `<div class="entityCard"><b>${esc(player.name)}</b><div class="muted">${esc(player.teams?.name || '—')}${player.teams?.branches?.name ? ' · ' + esc(player.teams.branches.name) : ''}${player.role ? ' · ' + esc(player.role) : ''}</div></div>`;
   html += '<div class="sectionHeading">Next 7 days</div>';
   html += upcoming.length ? upcoming.map(u => `<div class="list-item"><span>${esc(u.label)}</span><span class="role-tag">${esc(u.date)}</span></div>`).join('') : '<div class="empty-state">Nothing scheduled.</div>';
@@ -4873,6 +4881,26 @@ async function renderMyDashboardFor(player) {
   html += latestAssess ? `<div class="list-item"><span>Overall rating</span><span class="role-tag">${avgRating}/10 · ${esc(latestAssess.date)}</span></div>` : '<div class="empty-state">No assessments yet.</div>';
   html += '<div class="sectionHeading">Active development goals</div>';
   html += (devRes.data || []).length ? devRes.data.map(dp => `<div class="list-item"><span>${esc(dp.goal)}</span><span class="role-tag">Due ${esc(dp.deadline || '—')}</span></div>`).join('') : '<div class="empty-state">No active goals.</div>';
+
+  html += `<div class="sectionHeading">Sessions attended ${pastSessions.length ? `<span class="muted" style="font-weight:400;">(${attendedCount}/${pastSessions.length} recent · ${attendanceRate}%)</span>` : ''}</div>`;
+  if (!pastSessions.length) html += '<div class="empty-state">No past sessions logged yet.</div>';
+  else html += pastSessions.map(s => {
+    const status = s.attendance && s.attendance[player.id] ? s.attendance[player.id] : 'not recorded';
+    return `<div class="list-item"><span>${esc(s.title || SESSION_TYPE_LABELS[s.session_type] || 'Session')}</span><span class="role-tag">${esc(status)} · ${esc(s.date)}</span></div>`;
+  }).join('');
+
+  html += '<div class="sectionHeading">Recent match performance</div>';
+  if (!pastMatchesPlayed.length) html += '<div class="empty-state">No matches recorded yet.</div>';
+  else html += pastMatchesPlayed.map(m => {
+    const bat = (m.batting_review || []).find(r => r.playerId === player.id);
+    const bowl = (m.bowling_review || []).find(r => r.playerId === player.id);
+    const parts = [];
+    if (bat) parts.push(`${bat.runs} (${bat.balls}b, ${bat.fours}x4, ${bat.sixes}x6)${bat.dismissal ? ' — ' + esc(bat.dismissal) : ''}`);
+    if (bowl) parts.push(`${bowl.wickets}/${bowl.runsConceded} (${bowl.overs}ov)`);
+    const summary = parts.length ? parts.join(' · ') : 'Played — no batting/bowling logged';
+    return `<div class="list-item"><span>vs ${esc(m.opponent || '—')} <span class="muted">${esc(summary)}</span></span><span class="role-tag">${esc(m.date)}</span></div>`;
+  }).join('');
+
   contentEl.innerHTML = html;
 }
 
